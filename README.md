@@ -16,6 +16,11 @@ A comprehensive reference for configuring npm, pnpm, Yarn, Bun, pip, uv, Go modu
   - [uv](#uv)
 - [Go Modules](#go-modules)
 - [Cargo (Rust)](#cargo-rust)
+- [Cross-Cutting Considerations](#cross-cutting-considerations)
+  - [Dependabot Integration](#dependabot-integration)
+  - [Harden-Runner: Runtime CI Hardening](#harden-runner-runtime-ci-hardening)
+  - [Native Minimum Release Age Support Matrix](#native-minimum-release-age-support-matrix)
+- [Reference Links](#reference-links)
 
 ---
 
