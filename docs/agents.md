@@ -6,11 +6,11 @@ This repository includes ready-made `AGENTS.md` files for each supported stack. 
 
 | File | Use for |
 |------|---------|
-| [`AGENTS-nodejs.md`](../AGENTS-nodejs.md) | Projects using npm, pnpm, Yarn, or Bun |
-| [`AGENTS-python.md`](../AGENTS-python.md) | Projects using pip/pip-tools or uv |
-| [`AGENTS-go.md`](../AGENTS-go.md) | Go module projects |
-| [`AGENTS-rust.md`](../AGENTS-rust.md) | Rust/Cargo projects |
-| [`AGENTS-terraform.md`](../AGENTS-terraform.md) | Terraform or OpenTofu projects |
+| [`AGENTS-nodejs.md`](../agents/AGENTS-nodejs.md) | Projects using npm, pnpm, Yarn, or Bun |
+| [`AGENTS-python.md`](../agents/AGENTS-python.md) | Projects using pip/pip-tools or uv |
+| [`AGENTS-go.md`](../agents/AGENTS-go.md) | Go module projects |
+| [`AGENTS-rust.md`](../agents/AGENTS-rust.md) | Rust/Cargo projects |
+| [`AGENTS-terraform.md`](../agents/AGENTS-terraform.md) | Terraform or OpenTofu projects |
 
 ## Installation
 
@@ -18,26 +18,26 @@ Copy the appropriate file to the root of your repository and rename it `AGENTS.m
 
 ```bash
 # Node.js project
-curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/AGENTS-nodejs.md
+curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-nodejs.md
 
 # Python project
-curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/AGENTS-python.md
+curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-python.md
 
 # Go project
-curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/AGENTS-go.md
+curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-go.md
 
 # Rust project
-curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/AGENTS-rust.md
+curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-rust.md
 
 # Terraform / OpenTofu project
-curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/AGENTS-terraform.md
+curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-terraform.md
 ```
 
 Or clone and copy manually:
 
 ```bash
 git clone https://github.com/jordanconway/package-manager-hardening
-cp package-manager-hardening/AGENTS-nodejs.md your-project/AGENTS.md
+cp package-manager-hardening/agents/AGENTS-nodejs.md your-project/AGENTS.md
 ```
 
 ## Customisation

@@ -28,11 +28,11 @@ The core practices covered here are:
 
 ```bash
 # Pick the one that matches your stack
-curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/AGENTS-nodejs.md
-curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/AGENTS-python.md
-curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/AGENTS-go.md
-curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/AGENTS-rust.md
-curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/AGENTS-terraform.md
+curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-nodejs.md
+curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-python.md
+curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-go.md
+curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-rust.md
+curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-terraform.md
 ```
 
 **For on-demand auditing:** install the `harden-packages` skill and say `harden my repo` in Claude Code or Cowork.
@@ -140,17 +140,3 @@ The lockfile provides a partial mitigation — it pins exact resolved versions �
 - [Dependabot Terraform Ecosystem Docs](https://docs.github.com/en/code-security/dependabot/ecosystems-supported-by-dependabot/supported-package-ecosystems#terraform)
 - [Package Managers Need to Cool Down (Andrew Nesbitt)](https://nesbitt.io/2026/03/04/package-managers-need-to-cool-down.html)
 
----
-
-## What's in this repo
-
-```
-AGENTS-nodejs.md          ← copy to your Node.js repo as AGENTS.md
-AGENTS-python.md          ← copy to your Python repo as AGENTS.md
-AGENTS-go.md              ← copy to your Go repo as AGENTS.md
-AGENTS-rust.md            ← copy to your Rust repo as AGENTS.md
-AGENTS-terraform.md       ← copy to your Terraform/OpenTofu repo as AGENTS.md
-skills/
-  harden-packages/        ← copy to ~/.claude/skills/ to install the audit skill
-docs/                     ← detailed reference docs for each ecosystem and control
-```
