@@ -9,7 +9,7 @@ description: >
   review CI/CD pipeline security. Also trigger when the user says things like "harden
   my repo", "check my dependencies", "is my package config secure?", "set up supply
   chain security", "add Dependabot", or "are my packages safe?". Works across Node.js
-  (npm/pnpm/yarn/bun), Python (pip/uv), Go, Rust/Cargo, and Terraform/OpenTofu repos.
+  (npm/pnpm/yarn/bun), Python (pip/uv), Go, Rust/Cargo, PHP/Composer, and Terraform/OpenTofu repos.
 ---
 
 # Package Manager Hardening Skill
@@ -28,6 +28,7 @@ Scan the repo to identify which ecosystems are present:
 | `pyproject.toml`, `requirements.txt`, `uv.lock`, `requirements.lock` | Python |
 | `go.mod`, `go.sum` | Go |
 | `Cargo.toml`, `Cargo.lock` | Rust |
+| `composer.json`, `composer.lock` | PHP / Composer |
 | `*.tf` files containing `required_providers` or `terraform {` blocks | Terraform / OpenTofu |
 | `.terraform.lock.hcl` | Terraform / OpenTofu |
 
@@ -113,6 +114,29 @@ For each detected ecosystem, check the items below. Track every finding as eithe
 **CI**
 - Does CI use `--locked` flag on `cargo build` and `cargo test`?
 - Does CI run `cargo audit --deny warnings`?
+
+### PHP / Composer
+
+**Lockfile**
+- Is `composer.lock` present and committed (not gitignored)?
+
+**Version pinning**
+- Do all `require` entries in `composer.json` use exact version strings (not `^`, `~`, `>=`, or `*`)?
+
+**Composer version**
+- Is Composer 2.7 or later in use? (Check workflow files or `composer --version`)
+
+**Vulnerability auditing**
+- Does CI run `composer audit --locked`?
+- Is `roave/security-advisories:dev-latest` present as a dev dependency?
+
+**Build script control**
+- Does CI use `--no-scripts --no-plugins` with `composer install`?
+- Does CI use `--prefer-dist`?
+
+**CI install pattern**
+- Is `COMPOSER_NO_INTERACTION=1` set in CI?
+- Does CI use `composer install` (not `composer update`)?
 
 ### Terraform / OpenTofu
 
@@ -206,7 +230,8 @@ If the user agrees (fully or partially), apply the fixes in this order — lower
 1. `pnpm-workspace.yaml` / `.npmrc` / `.yarnrc.yml` / `bunfig.toml` — add missing cooldown / trust policy config
 2. `pyproject.toml [tool.uv]` — add `exclude-newer`, `require-hashes`, `verify-hashes`
 3. `.cargo/config.toml` — add `[cooldown]` block
-4. Terraform `*.tf` — tighten `~>` / `>=` constraints to `=` exact pins (flag for human review — this is a breaking change; do not apply autonomously, present the proposed changes and get explicit approval)
+4. `composer.json` — add `roave/security-advisories` dev dependency; tighten `^`/`~` pins to exact (flag for human review)
+5. Terraform `*.tf` — tighten `~>` / `>=` constraints to `=` exact pins (flag for human review — this is a breaking change; do not apply autonomously, present the proposed changes and get explicit approval)
 5. `.github/dependabot.yml` — add missing ecosystem entries with cooldown blocks
 6. `.github/workflows/*.yml` — add or update harden-runner steps
 
@@ -267,6 +292,37 @@ cooldown:
   semver-patch-days: 3
 ```
 
+**Composer CI install:**
+```bash
+export COMPOSER_NO_INTERACTION=1
+composer install --no-scripts --no-plugins --prefer-dist
+composer audit --locked
+```
+
+**roave/security-advisories (add as dev dependency):**
+```bash
+composer require --dev roave/security-advisories:dev-latest
+```
+
+**Dependabot composer ecosystem entry:**
+```yaml
+  - package-ecosystem: "composer"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+```
+
+**Harden-Runner endpoints for Composer:**
+```yaml
+      packagist.org:443
+      repo.packagist.org:443
+```
+
 **Terraform required_providers exact pinning:**
 ```hcl
 terraform {
@@ -324,6 +380,7 @@ Append the ecosystem-specific endpoints:
 - Python: `pypi.org:443 files.pythonhosted.org:443`
 - Go: `proxy.golang.org:443 sum.golang.org:443 storage.googleapis.com:443`
 - Rust: `crates.io:443 index.crates.io:443 static.crates.io:443`
+- PHP: `packagist.org:443 repo.packagist.org:443`
 - Terraform: `registry.terraform.io:443 releases.hashicorp.com:443 checkpoint-api.hashicorp.com:443`
 - OpenTofu: `registry.opentofu.org:443` (provider binary CDN endpoints vary by provider — discover via `audit` mode first)
 
