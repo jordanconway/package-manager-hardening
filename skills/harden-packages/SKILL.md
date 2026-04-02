@@ -9,7 +9,7 @@ description: >
   review CI/CD pipeline security. Also trigger when the user says things like "harden
   my repo", "check my dependencies", "is my package config secure?", "set up supply
   chain security", "add Dependabot", or "are my packages safe?". Works across Node.js
-  (npm/pnpm/yarn/bun), Python (pip/uv), Go, and Rust/Cargo repos.
+  (npm/pnpm/yarn/bun), Python (pip/uv), Go, Rust/Cargo, and Terraform/OpenTofu repos.
 ---
 
 # Package Manager Hardening Skill
@@ -28,10 +28,13 @@ Scan the repo to identify which ecosystems are present:
 | `pyproject.toml`, `requirements.txt`, `uv.lock`, `requirements.lock` | Python |
 | `go.mod`, `go.sum` | Go |
 | `Cargo.toml`, `Cargo.lock` | Rust |
+| `*.tf` files containing `required_providers` or `terraform {` blocks | Terraform / OpenTofu |
+| `.terraform.lock.hcl` | Terraform / OpenTofu |
 
 Also check:
 - `.github/dependabot.yml` — is Dependabot configured?
 - `.github/workflows/*.yml` — are any CI workflows present? Is Harden-Runner present?
+- For Terraform/OpenTofu: note whether the CLI is `terraform` or `tofu` (check workflow files and `.tool-versions` / `.terraform-version`)
 
 ## Step 2: Audit each ecosystem
 
@@ -111,12 +114,37 @@ For each detected ecosystem, check the items below. Track every finding as eithe
 - Does CI use `--locked` flag on `cargo build` and `cargo test`?
 - Does CI run `cargo audit --deny warnings`?
 
+### Terraform / OpenTofu
+
+**Lockfile**
+- Is `.terraform.lock.hcl` present in each root module directory?
+- Is it gitignored? (bad — it must be committed)
+- Does it contain entries for all platforms used in CI (check `h1:` hash entries per platform)?
+
+**Version pinning**
+- Do all `required_providers` blocks use exact `=` version constraints (not `~>`, `>=`, or open ranges)?
+- Is `required_version` set for the CLI itself, and does it use `=` (not `~>` or `>=`)?
+- Do all `module` source references that use a registry module pin to an exact `version = "= X.Y.Z"`?
+- Do Git-sourced modules pin to a specific tag (not `ref=main` or `ref=master`)?
+
+**Multi-platform hash pre-population**
+- Does the lockfile contain `h1:` hashes for all platforms where `terraform init` runs (dev machines + CI)?
+- If not, the team should run `terraform providers lock -platform=linux/amd64 -platform=darwin/arm64` (etc.) and commit the result.
+
+**CLI lockfile enforcement**
+- Does CI use `-lockfile=readonly` with `terraform init` / `tofu init`?
+
+**OpenTofu-specific (if applicable)**
+- Is the project on OpenTofu ≥ 1.8 if Dependabot is configured? (v1.8 is required for Dependabot support)
+- Is state encryption configured via `encryption {}` blocks? (OpenTofu feature — flag if missing)
+
 ### Dependabot
 
 For each detected ecosystem, check `.github/dependabot.yml`:
 - Is there an `updates` entry for this ecosystem?
 - Does it have a `cooldown` block with `default-days` ≥ 1?
 - Are `semver-major-days` set higher than `semver-minor-days` and `semver-patch-days`?
+- **Terraform note:** The `terraform` ecosystem has a known Dependabot bug ([#13715](https://github.com/dependabot/dependabot-core/issues/13715)) where provider cooldowns may not be respected. Flag this as ⚠️ even if a cooldown is configured, and recommend exact `=` pinning as the primary control.
 
 ### Harden-Runner
 
@@ -178,8 +206,11 @@ If the user agrees (fully or partially), apply the fixes in this order — lower
 1. `pnpm-workspace.yaml` / `.npmrc` / `.yarnrc.yml` / `bunfig.toml` — add missing cooldown / trust policy config
 2. `pyproject.toml [tool.uv]` — add `exclude-newer`, `require-hashes`, `verify-hashes`
 3. `.cargo/config.toml` — add `[cooldown]` block
-4. `.github/dependabot.yml` — add missing ecosystem entries with cooldown blocks
-5. `.github/workflows/*.yml` — add or update harden-runner steps
+4. Terraform `*.tf` — tighten `~>` / `>=` constraints to `=` exact pins (flag for human review — this is a breaking change; do not apply autonomously, present the proposed changes and get explicit approval)
+5. `.github/dependabot.yml` — add missing ecosystem entries with cooldown blocks
+6. `.github/workflows/*.yml` — add or update harden-runner steps
+
+**Terraform version-pinning caveat:** Changing `~>` to `=` in `required_providers` is functionally a breaking change that can cause `terraform init` to fail if the exact version isn't in the lockfile. Always present the proposed constraint changes and the matching `terraform providers lock` command as a unit, and require explicit human approval before applying.
 
 For each file you modify, show a clear before/after diff and explain what changed and why.
 
@@ -236,6 +267,46 @@ cooldown:
   semver-patch-days: 3
 ```
 
+**Terraform required_providers exact pinning:**
+```hcl
+terraform {
+  required_version = "= 1.9.8"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 5.84.0"   # replace with current exact version
+    }
+  }
+}
+```
+
+**Terraform CI init with lockfile enforcement:**
+```bash
+terraform init -input=false -lockfile=readonly
+```
+
+**Multi-platform provider lock (run locally, commit result):**
+```bash
+terraform providers lock \
+  -platform=linux/amd64 \
+  -platform=linux/arm64 \
+  -platform=darwin/arm64 \
+  -platform=darwin/amd64
+```
+
+**Dependabot terraform ecosystem entry:**
+```yaml
+  - package-ecosystem: "terraform"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+```
+
 **Harden-Runner step (start in audit mode; switch to block after confirming allowlist):**
 ```yaml
 - uses: step-security/harden-runner@v2
@@ -253,6 +324,8 @@ Append the ecosystem-specific endpoints:
 - Python: `pypi.org:443 files.pythonhosted.org:443`
 - Go: `proxy.golang.org:443 sum.golang.org:443 storage.googleapis.com:443`
 - Rust: `crates.io:443 index.crates.io:443 static.crates.io:443`
+- Terraform: `registry.terraform.io:443 releases.hashicorp.com:443 checkpoint-api.hashicorp.com:443`
+- OpenTofu: `registry.opentofu.org:443` (provider binary CDN endpoints vary by provider — discover via `audit` mode first)
 
 ## Important notes
 
