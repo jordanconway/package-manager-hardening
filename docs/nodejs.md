@@ -246,27 +246,51 @@ pnpm audit --audit-level=moderate
 
 ---
 
-## Yarn
+## Yarn Classic
 
-**Configuration files:** `.yarnrc.yml`, `package.json`
+**Configuration files:** `.yarnrc`, `package.json`
 
-Yarn has two major release lines with different configuration formats:
-
-- **Yarn Classic (v1):** uses `.yarnrc` (legacy, not recommended for new projects)
-- **Yarn Berry (v2+):** uses `.yarnrc.yml` (all examples below are Berry)
+Yarn Classic (v1) is the original Yarn release. It is in maintenance mode and not recommended for new projects — use Yarn Berry instead. Configuration lives in `.yarnrc` (not `.yarnrc.yml`).
 
 ### Lockfile
 
-Yarn generates `yarn.lock`. Commit it. In CI:
+Yarn Classic generates `yarn.lock`. Commit it. In CI:
 
 ```bash
-yarn install --immutable          # Berry: fail if lockfile would change
-yarn install --frozen-lockfile    # Classic equivalent
+yarn install --frozen-lockfile    # fail if lockfile would change
 ```
 
 ### Version Pinning
 
-Standard `package.json` exact versioning applies. Set default in `.yarnrc.yml`:
+Standard `package.json` exact versioning applies — remove `^` and `~` prefixes manually, as Classic has no built-in exact-pin flag.
+
+### Registry Configuration
+
+```ini
+# .yarnrc
+registry "https://your-registry.example.com/"
+"@myorg:registry" "https://npm.pkg.github.com/"
+```
+
+---
+
+## Yarn Berry
+
+**Configuration files:** `.yarnrc.yml`, `package.json`
+
+Yarn Berry (v2+) is the actively developed release line. All security features (`npmMinimalAgeGate`, PnP, scoped registry auth) are Berry-only. Configuration lives in `.yarnrc.yml`.
+
+### Lockfile
+
+Yarn Berry generates `yarn.lock`. Commit it. In CI:
+
+```bash
+yarn install --immutable   # fail if lockfile would change
+```
+
+### Version Pinning
+
+Set exact pinning as the default in `.yarnrc.yml`:
 
 ```yaml
 defaultSemverRangePrefix: ""   # installs exact versions by default (no ^ or ~)
