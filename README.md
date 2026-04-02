@@ -154,6 +154,7 @@ The skill audits all of the following, where applicable to the detected stack:
   - [Dependabot Integration](#dependabot-integration)
   - [Harden-Runner: Runtime CI Hardening](#harden-runner-runtime-ci-hardening)
   - [Native Minimum Release Age Support Matrix](#native-minimum-release-age-support-matrix)
+  - [Version Constraint Support](#version-constraint-support)
 - [Reference Links](#reference-links)
 - [AGENTS.md Files](#using-the-agentsmd-files)
   - [Node.js](./AGENTS-nodejs.md)
@@ -1356,6 +1357,29 @@ Once the egress policy is stable, switch to `block` and enumerate only the endpo
 | pip                    | ⚠️ Partial    | v26.0 (Jan 2026)  | `--uploaded-prior-to`   | ❌ Absolute only  |
 | Cargo                  | ❌ No         | —            | (use `cargo-cooldown`)       | —                 |
 | Go modules             | ❌ No         | —            | (use Dependabot or proxy)    | —                 |
+
+---
+
+### Version Constraint Support
+
+Loose version constraints are one of the most common vectors for supply chain attacks. When a manifest allows a range (`^1.0.0`, `>=1.0.0`, `~=1.0`), any newly published version matching that range can be silently pulled in — particularly during fresh installs, dependency updates, or CI runs that don't enforce a lockfile. A compromised maintainer account publishing `1.0.1` with malicious code will satisfy `^1.0.0` in every consuming project that doesn't pin exactly.
+
+The lockfile provides a partial mitigation — it pins exact resolved versions — but it only protects you when it is actively enforced (e.g. `npm ci`, `uv sync --frozen`). A developer running a bare `npm install` or `pip install -r requirements.txt` against a loose manifest will re-resolve within the allowed range and can pull in a version the lockfile never saw.
+
+| Package Manager | Default Constraint | Loose Syntax (avoid) | Exact Syntax (use) | Lockfile pins exact? | Enforce exact via |
+|---|---|---|---|---|---|
+| npm | `^` (minor+patch) | `^1.0.0` `~1.0.0` `>=1.0.0` `*` | `1.0.0` | ✅ Yes — `npm ci` enforces it | `save-exact=true` in `.npmrc` |
+| pnpm | `^` (minor+patch) | `^1.0.0` `~1.0.0` `>=1.0.0` | `1.0.0` | ✅ Yes — `--frozen-lockfile` | `save-exact=true` in `.npmrc` |
+| Yarn Berry | `^` (minor+patch) | `^1.0.0` `~1.0.0` `>=1.0.0` | `1.0.0` | ✅ Yes — `--immutable` | `defaultSemverRangePrefix: ""` in `.yarnrc.yml` |
+| Bun | `^` (minor+patch) | `^1.0.0` `~1.0.0` `>=1.0.0` | `1.0.0` | ✅ Yes — `--frozen-lockfile` | `exact = true` in `bunfig.toml` |
+| pip | None (user-specified) | `>=1.0.0` `~=1.0.0` `!=1.0.0` | `==1.0.0` | ❌ No native lockfile | `pip-compile --generate-hashes`; always use `==` |
+| uv | None (user-specified) | `>=1.0.0` `~=1.0.0` | `==1.0.0` | ✅ Yes — `uv sync --frozen` | `require-hashes = true` in `[tool.uv]` |
+| Go modules | MVS minimum¹ | `@latest` `@master` | `@v1.9.1` | ✅ Yes — `go.sum` hashes | Never use `@latest`; always specify a tagged version |
+| Cargo | `^` (caret, implicit) | `1.0.0` `^1.0.0` `~1.0.0` `>=1.0.0` | `=1.0.0` | ✅ Yes — `--locked` | Use `=` prefix explicitly in `Cargo.toml` |
+
+**¹ Go's Minimum Version Selection (MVS)** works differently from other package managers. A `require` directive specifies the *minimum acceptable version*, and Go always resolves to that exact version (never newer) unless you explicitly run `go get -u`. This makes Go more conservative by default — it will not silently adopt new versions without an explicit developer action. However, `go get -u` and `go get @latest` bypass this safety and should be avoided in favour of pinning explicit tagged versions.
+
+**Key observation:** For Node.js tools, Cargo, and uv, the lockfile is a strong control *only when actively enforced*. If CI runs `npm install` instead of `npm ci`, or if a developer installs a new dependency on a workstation without committing the updated lockfile, the loose constraint in the manifest becomes the effective policy. Exact pinning in the manifest eliminates this residual risk regardless of how install commands are invoked.
 
 ---
 
