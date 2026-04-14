@@ -9,7 +9,7 @@ description: >
   review CI/CD pipeline security. Also trigger when the user says things like "harden
   my repo", "check my dependencies", "is my package config secure?", "set up supply
   chain security", "add Dependabot", or "are my packages safe?". Works across Node.js
-  (npm/pnpm/yarn/bun), Python (pip/uv), Go, Rust/Cargo, PHP/Composer, and Terraform/OpenTofu repos.
+  (npm/pnpm/yarn/bun), Python (pip/uv), Go, Rust/Cargo, PHP/Composer, Ruby/Bundler, and Terraform/OpenTofu repos.
 ---
 
 # Package Manager Hardening Skill
@@ -29,6 +29,7 @@ Scan the repo to identify which ecosystems are present:
 | `go.mod`, `go.sum` | Go |
 | `Cargo.toml`, `Cargo.lock` | Rust |
 | `composer.json`, `composer.lock` | PHP / Composer |
+| `Gemfile`, `Gemfile.lock` | Ruby / Bundler |
 | `*.tf` files containing `required_providers` or `terraform {` blocks | Terraform / OpenTofu |
 | `.terraform.lock.hcl` | Terraform / OpenTofu |
 
@@ -138,6 +139,25 @@ For each detected ecosystem, check the items below. Track every finding as eithe
 - Is `COMPOSER_NO_INTERACTION=1` set in CI?
 - Does CI use `composer install` (not `composer update`)?
 
+### Ruby / Bundler
+
+**Gemfile.lock**
+- Is `Gemfile.lock` present and committed (not gitignored)?
+
+**Version pinning**
+- Do all `gem` entries in `Gemfile` use exact versions (no `~>`, `>=`, or open ranges)?
+
+**Lockfile enforcement**
+- Is `BUNDLE_FROZEN=true` set in CI (or `bundle config set --local frozen true`)?
+- Does CI use `bundle install` (not `bundle update`)?
+
+**Vulnerability auditing**
+- Does CI run `bundle audit check` (or `bundle audit check --update`)?
+- Is `bundler-audit` installed?
+
+**Ruby version pinning**
+- Is a `ruby` directive present in `Gemfile` or a `.ruby-version` file committed?
+
 ### Terraform / OpenTofu
 
 **Lockfile**
@@ -231,9 +251,10 @@ If the user agrees (fully or partially), apply the fixes in this order — lower
 2. `pyproject.toml [tool.uv]` — add `exclude-newer`, `require-hashes`, `verify-hashes`
 3. `.cargo/config.toml` — add `[cooldown]` block
 4. `composer.json` — add `roave/security-advisories` dev dependency; tighten `^`/`~` pins to exact (flag for human review)
-5. Terraform `*.tf` — tighten `~>` / `>=` constraints to `=` exact pins (flag for human review — this is a breaking change; do not apply autonomously, present the proposed changes and get explicit approval)
-5. `.github/dependabot.yml` — add missing ecosystem entries with cooldown blocks
-6. `.github/workflows/*.yml` — add or update harden-runner steps
+5. Ruby CI — add `BUNDLE_FROZEN=true` and `bundle audit check` to CI workflow
+6. Terraform `*.tf` — tighten `~>` / `>=` constraints to `=` exact pins (flag for human review — this is a breaking change; do not apply autonomously, present the proposed changes and get explicit approval)
+7. `.github/dependabot.yml` — add missing ecosystem entries with cooldown blocks
+8. `.github/workflows/*.yml` — add or update harden-runner steps
 
 **Terraform version-pinning caveat:** Changing `~>` to `=` in `required_providers` is functionally a breaking change that can cause `terraform init` to fail if the exact version isn't in the lockfile. Always present the proposed constraint changes and the matching `terraform providers lock` command as a unit, and require explicit human approval before applying.
 
@@ -323,6 +344,33 @@ composer require --dev roave/security-advisories:dev-latest
       repo.packagist.org:443
 ```
 
+**Ruby CI install (Gemfile):**
+```bash
+export BUNDLE_FROZEN=true
+bundle install --jobs 4 --retry 3
+bundle exec bundle-audit check --update
+```
+
+**Dependabot bundler ecosystem entry:**
+```yaml
+  - package-ecosystem: "bundler"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+```
+
+**Harden-Runner endpoints for Bundler:**
+```yaml
+      rubygems.org:443
+      api.rubygems.org:443
+      index.rubygems.org:443
+```
+
 **Terraform required_providers exact pinning:**
 ```hcl
 terraform {
@@ -381,6 +429,7 @@ Append the ecosystem-specific endpoints:
 - Go: `proxy.golang.org:443 sum.golang.org:443 storage.googleapis.com:443`
 - Rust: `crates.io:443 index.crates.io:443 static.crates.io:443`
 - PHP: `packagist.org:443 repo.packagist.org:443`
+- Ruby: `rubygems.org:443 api.rubygems.org:443 index.rubygems.org:443` (add `raw.githubusercontent.com:443` if `bundle audit update` runs in CI)
 - Terraform: `registry.terraform.io:443 releases.hashicorp.com:443 checkpoint-api.hashicorp.com:443`
 - OpenTofu: `registry.opentofu.org:443` (provider binary CDN endpoints vary by provider — discover via `audit` mode first)
 

@@ -34,6 +34,7 @@ curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager
 curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-rust.md
 curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-terraform.md
 curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-php.md
+curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-ruby.md
 ```
 
 **For on-demand auditing:** install the `harden-packages` skill and say `harden my repo` in Claude Code or Cowork.
@@ -55,6 +56,7 @@ cp -r skills/harden-packages ~/.claude/skills/
 | [Go](docs/go.md) | Go modules — `go.sum`, MVS pinning, `GOPRIVATE`, `govulncheck`, CI verification |
 | [Rust](docs/rust.md) | Cargo — exact version pinning, `cargo-cooldown`, `cargo audit`, lockfile enforcement |
 | [PHP](docs/php.md) | Composer — lockfile enforcement, exact pinning, `composer audit`, `roave/security-advisories`, build script control |
+| [Ruby](docs/ruby.md) | Bundler — `Gemfile.lock`, exact pinning, `BUNDLE_FROZEN`, `bundler-audit`, Dependabot cooldown |
 | [Terraform / OpenTofu](docs/terraform.md) | Provider pinning, `.terraform.lock.hcl`, multi-platform hashes, `-lockfile=readonly`, OpenTofu differences |
 
 ### Cross-cutting controls
@@ -86,6 +88,7 @@ cp -r skills/harden-packages ~/.claude/skills/
 | [Cargo](docs/rust.md#cargo-rust) | ❌ No | — | (use `cargo-cooldown`) | — |
 | [Go modules](docs/go.md#go-modules) | ❌ No | — | (use Dependabot or proxy) | — |
 | [Composer](docs/php.md#composer) | ❌ No | — | (use Dependabot + exact pins) | — |
+| [Bundler](docs/ruby.md#bundler) | ❌ No | — | (use Dependabot + exact pins) | — |
 | [Terraform](docs/terraform.md#terraform) / [OpenTofu](docs/terraform.md#opentofu) | ❌ No | — | (use exact `=` pins + Dependabot²) | — |
 
 ---
@@ -107,6 +110,7 @@ The lockfile provides a partial mitigation — it pins exact resolved versions �
 | [Go modules](docs/go.md#go-modules) | MVS minimum¹ | `@latest` `@master` | `@v1.9.1` | ✅ Yes — `go.sum` hashes | Never use `@latest`; always specify a tagged version |
 | [Cargo](docs/rust.md#cargo-rust) | `^` (caret, implicit) | `1.0.0` `^1.0.0` `~1.0.0` `>=1.0.0` | `=1.0.0` | ✅ Yes — `--locked` | Use `=` prefix explicitly in `Cargo.toml` |
 | [Composer](docs/php.md#composer) | `^` (caret) | `^1.2.3` `~1.2.3` `>=1.0` `1.2.*` | `1.2.3` | ✅ Yes — `composer install` enforces it | Use bare version strings in `composer.json` |
+| [Bundler](docs/ruby.md#bundler) | `~>` (pessimistic) | `~> 7.1` `~> 7.1.3` `>= 7.1.0` | `7.1.3` | ✅ Yes — `BUNDLE_FROZEN=true` | Use bare version strings in `Gemfile` |
 | [Terraform](docs/terraform.md#terraform) / [OpenTofu](docs/terraform.md#opentofu) | `~>` (patch-only by default²) | `~> 5.0` `>= 5.0` `>= 5.0, < 6.0` | `= 5.31.0` | ✅ Yes — `.terraform.lock.hcl`; `-lockfile=readonly` | Use `= X.Y.Z` in `required_providers`; run `terraform providers lock` for multi-platform hashes |
 
 **¹ Go's Minimum Version Selection (MVS)** works differently from other package managers. A `require` directive specifies the *minimum acceptable version*, and Go always resolves to that exact version (never newer) unless you explicitly run `go get -u`. This makes Go more conservative by default — it will not silently adopt new versions without an explicit developer action. However, `go get -u` and `go get @latest` bypass this safety and should be avoided in favour of pinning explicit tagged versions.
@@ -134,6 +138,11 @@ The lockfile provides a partial mitigation — it pins exact resolved versions �
 - [Composer Security Audit](https://php.watch/articles/composer-audit)
 - [roave/security-advisories](https://github.com/Roave/SecurityAdvisories)
 - [local-php-security-checker](https://github.com/fabpot/local-php-security-checker)
+- [Bundler Documentation](https://bundler.io/docs.html)
+- [RubyGems Security](https://guides.rubygems.org/security/)
+- [bundler-audit](https://github.com/rubysec/bundler-audit)
+- [Ruby Advisory Database](https://github.com/rubysec/ruby-advisory-db)
+- [ruby_audit](https://github.com/civisanalytics/ruby_audit)
 - [Dependabot Options Reference](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference)
 - [Dependabot Cooldown Announcement](https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/)
 - [Harden-Runner on GitHub](https://github.com/step-security/harden-runner)

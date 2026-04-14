@@ -12,6 +12,7 @@ This repository includes ready-made `AGENTS.md` files for each supported stack. 
 | [`AGENTS-rust.md`](../agents/AGENTS-rust.md) | Rust/Cargo projects |
 | [`AGENTS-terraform.md`](../agents/AGENTS-terraform.md) | Terraform or OpenTofu projects |
 | [`AGENTS-php.md`](../agents/AGENTS-php.md) | PHP / Composer projects |
+| [`AGENTS-ruby.md`](../agents/AGENTS-ruby.md) | Ruby / Bundler projects |
 
 ## Installation
 
@@ -35,6 +36,9 @@ curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager
 
 # PHP / Composer project
 curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-php.md
+
+# Ruby / Bundler project
+curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-ruby.md
 ```
 
 Or clone and copy manually:
