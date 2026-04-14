@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 The Linux Foundation
+
+SPDX-License-Identifier: MIT
+-->
+
 # Agent Instructions: Python Dependency Management
 
 This file contains mandatory guidelines for managing dependencies in this Python project. Follow these rules whenever adding, updating, or removing packages, or modifying CI configuration.

@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 The Linux Foundation
+
+SPDX-License-Identifier: MIT
+-->
+
 # Harden-Runner: Runtime CI Hardening
 
 

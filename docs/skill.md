@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 The Linux Foundation
+
+SPDX-License-Identifier: MIT
+-->
+
 # harden-packages Skill
 
 This repository also includes a [Cowork](https://claude.ai) / [Claude Code](https://claude.ai/claude-code) skill that actively audits a repository's package manager configuration and applies fixes interactively. Where the `AGENTS.md` files give an AI agent *standing instructions* to follow as it works, the skill is something you invoke on demand to get an immediate audit report and remediation.

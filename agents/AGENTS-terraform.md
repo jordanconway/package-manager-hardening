@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 The Linux Foundation
+
+SPDX-License-Identifier: MIT
+-->
+
 # Agent Instructions: Terraform / OpenTofu Dependency Management
 
 This file contains mandatory guidelines for managing provider and module dependencies in this Terraform or OpenTofu project. Follow these rules whenever adding, updating, or removing providers and modules, or modifying CI configuration.

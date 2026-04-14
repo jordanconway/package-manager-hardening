@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 The Linux Foundation
+
+SPDX-License-Identifier: MIT
+-->
+
 # Agent Instructions: Go Dependency Management
 
 This file contains mandatory guidelines for managing dependencies in this Go module project. Follow these rules whenever adding, updating, or removing modules, or modifying CI configuration.

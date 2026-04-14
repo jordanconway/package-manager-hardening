@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 The Linux Foundation
+
+SPDX-License-Identifier: MIT
+-->
+
 # Package Manager Security Hardening
 
 A reference for hardening software supply chains across npm, pnpm, Yarn, Bun, pip, uv, Go modules, Cargo, Terraform, and OpenTofu.

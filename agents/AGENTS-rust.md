@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 The Linux Foundation
+
+SPDX-License-Identifier: MIT
+-->
+
 # Agent Instructions: Rust/Cargo Dependency Management
 
 This file contains mandatory guidelines for managing dependencies in this Rust project. Follow these rules whenever adding, updating, or removing crates, or modifying CI configuration.

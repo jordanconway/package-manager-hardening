@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 The Linux Foundation
+
+SPDX-License-Identifier: MIT
+-->
+
 # AGENTS.md Files
 
 This repository includes ready-made `AGENTS.md` files for each supported stack. These files are read by Claude Code and compatible AI coding assistants when they work inside a repository, giving the agent standing instructions on how to handle dependencies safely — enforcing version pinning, cooldown windows, audit requirements, and CI configuration.
