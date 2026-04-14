@@ -24,191 +24,53 @@ You are auditing and hardening a software repository's dependency management aga
 supply chain attack risk. Your job is to detect gaps, explain why each matters, and
 — with the user's consent — fix them.
 
-## Step 1: Detect the stack
+## Step 1: Run the audit script
 
-Scan the repo to identify which ecosystems are present:
+Run `audit.py` from the repo root to collect all findings as structured JSON:
 
-| Signal files | Ecosystem |
-|---|---|
-| `package.json`, `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock` | Node.js |
-| `pyproject.toml`, `requirements.txt`, `uv.lock`, `requirements.lock` | Python |
-| `go.mod`, `go.sum` | Go |
-| `Cargo.toml`, `Cargo.lock` | Rust |
-| `composer.json`, `composer.lock` | PHP / Composer |
-| `Gemfile`, `Gemfile.lock` | Ruby / Bundler |
-| `*.tf` files containing `required_providers` or `terraform {` blocks | Terraform / OpenTofu |
-| `.terraform.lock.hcl` | Terraform / OpenTofu |
+```bash
+python {SKILL_DIR}/audit.py --path .
+```
 
-Also check:
-- `.github/dependabot.yml` — is Dependabot configured?
-- `.github/workflows/*.yml` — are any CI workflows present? Is Harden-Runner present?
-- For Terraform/OpenTofu: note whether the CLI is `terraform` or `tofu` (check workflow files and `.tool-versions` / `.terraform-version`)
+Where `{SKILL_DIR}` is the directory containing this SKILL.md file (e.g. `skills/harden-packages`).
 
-## Step 2: Audit each ecosystem
+The script performs all file-based checks — ecosystem detection, lockfile presence,
+version constraint analysis, CI config scanning, Dependabot and Harden-Runner
+inspection — and emits a single JSON object. No manual file reading is needed for
+the audit phase.
 
-For each detected ecosystem, check the items below. Track every finding as either
-✅ (good), ⚠️ (present but misconfigured), or ❌ (missing).
+**If the script fails or is unavailable**, fall back to reading files directly using
+the checklist in the [Reference: Manual Audit Checklist](#reference-manual-audit-checklist)
+section below.
 
-### Node.js (npm / pnpm / yarn / bun)
+## Step 2: Interpret findings
 
-**Lockfile**
-- Is `package-lock.json` / `pnpm-lock.yaml` / `yarn.lock` / `bun.lock` present?
-- Is it listed in `.gitignore`? (bad — it should be committed)
+Read the JSON output. The top-level keys are:
 
-**Version pinning**
-- Do `dependencies` and `devDependencies` in `package.json` use exact versions (no `^` or `~`)?
+- `ecosystems_detected` — list of ecosystems found (nodejs, python, go, rust, php, ruby, terraform)
+- One key per ecosystem (e.g. `nodejs`, `python`) with nested findings
+- `dependabot` — per-ecosystem Dependabot configuration status
+- `harden_runner` — per-workflow Harden-Runner status
 
-**Minimum release age**
-- npm ≥ 11.10: is `minimum-release-age` set in `.npmrc`? (recommended: 10080 = 7 days)
-- pnpm ≥ 10.16: is `minimumReleaseAge` set in `pnpm-workspace.yaml`? (recommended: `"7 days"`)
-- pnpm ≥ 10.0: is `trustPolicy: no-downgrade` set in `pnpm-workspace.yaml`?
-- Yarn Berry ≥ 4.10: is `npmMinimalAgeGate` set in `.yarnrc.yml`? (recommended: 604800)
-- Bun ≥ 1.3: is `minimumReleaseAge` set in `bunfig.toml`? (recommended: `"7d"`)
+Each check has a `status` field: `"pass"`, `"warn"`, `"fail"`, or `"missing"`.
 
-**Build script control**
-- pnpm: is `onlyBuiltDependencies` set (allowlist) or `ignoredBuiltDependencies` used?
-- Bun: is `lifecycleScripts = false` set with an explicit `trustedDependencies` allowlist?
+**Interpretation notes:**
 
-**CI install command**
-- Does CI use the strict/frozen install command (`npm ci`, `pnpm install --frozen-lockfile`, `yarn install --immutable`, `bun install --frozen-lockfile`)?
-
-### Python (pip / uv)
-
-**Lockfile**
-- uv: is `uv.lock` present and not gitignored?
-- pip: is there a compiled `requirements.lock` (from pip-compile) with hashes?
-
-**Version pinning**
-- Are all entries in `pyproject.toml` / `requirements.txt` using `==` (not `>=`, `~=`, or unpinned)?
-
-**Minimum release age / cooldown**
-- uv ≥ 0.9.17: is `exclude-newer` set in `[tool.uv]`? (recommended: `"7 days"`)
-- uv: are `require-hashes` and `verify-hashes` both `true` in `[tool.uv]`?
-
-**CI install command**
-- uv: does CI use `uv sync --frozen`?
-- pip: does CI use `pip install --require-hashes -r requirements.lock`?
-
-### Go
-
-**go.mod and go.sum**
-- Are both `go.mod` and `go.sum` present?
-- Are they gitignored? (bad)
-
-**Version pinning**
-- Are all `require` entries in `go.mod` using explicit tagged versions (not `@latest` or `@master`)?
-
-**Checksum database**
-- Is `GONOSUMDB` or `GONOSUMCHECK` set to `*` (disabling sum checks for all modules)? (bad)
-- Is `GOPRIVATE` / `GONOSUMDB` scoped only to internal/private modules?
-
-**CI verification**
-- Does CI run `go mod verify` and `go mod tidy` followed by a `git diff --exit-code go.mod go.sum` check?
-- Does CI run `govulncheck ./...`?
-
-### Rust / Cargo
-
-**Cargo.lock**
-- Is `Cargo.lock` present?
-- For a binary/application: is it committed (not gitignored)?
-
-**Version pinning**
-- Do `Cargo.toml` dependencies use `=` exact version syntax?
-
-**Cooldown**
-- Is `cargo-cooldown` configured in `.cargo/config.toml` with `[cooldown] days = 7`?
-
-**CI**
-- Does CI use `--locked` flag on `cargo build` and `cargo test`?
-- Does CI run `cargo audit --deny warnings`?
-
-### PHP / Composer
-
-**Lockfile**
-- Is `composer.lock` present and committed (not gitignored)?
-
-**Version pinning**
-- Do all `require` entries in `composer.json` use exact version strings (not `^`, `~`, `>=`, or `*`)?
-
-**Composer version**
-- Is Composer 2.7 or later in use? (Check workflow files or `composer --version`)
-
-**Vulnerability auditing**
-- Does CI run `composer audit --locked`?
-- Is `roave/security-advisories:dev-latest` present as a dev dependency?
-
-**Build script control**
-- Does CI use `--no-scripts --no-plugins` with `composer install`?
-- Does CI use `--prefer-dist`?
-
-**CI install pattern**
-- Is `COMPOSER_NO_INTERACTION=1` set in CI?
-- Does CI use `composer install` (not `composer update`)?
-
-### Ruby / Bundler
-
-**Gemfile.lock**
-- Is `Gemfile.lock` present and committed (not gitignored)?
-
-**Version pinning**
-- Do all `gem` entries in `Gemfile` use exact versions (no `~>`, `>=`, or open ranges)?
-
-**Lockfile enforcement**
-- Is `BUNDLE_FROZEN=true` set in CI (or `bundle config set --local frozen true`)?
-- Does CI use `bundle install` (not `bundle update`)?
-
-**Vulnerability auditing**
-- Does CI run `bundle audit check` (or `bundle audit check --update`)?
-- Is `bundler-audit` installed?
-
-**Ruby version pinning**
-- Is a `ruby` directive present in `Gemfile` or a `.ruby-version` file committed?
-
-### Terraform / OpenTofu
-
-**Lockfile**
-- Is `.terraform.lock.hcl` present in each root module directory?
-- Is it gitignored? (bad — it must be committed)
-- Does it contain entries for all platforms used in CI (check `h1:` hash entries per platform)?
-
-**Version pinning**
-- Do all `required_providers` blocks use exact `=` version constraints (not `~>`, `>=`, or open ranges)?
-- Is `required_version` set for the CLI itself, and does it use `=` (not `~>` or `>=`)?
-- Do all `module` source references that use a registry module pin to an exact `version = "= X.Y.Z"`?
-- Do Git-sourced modules pin to a specific tag (not `ref=main` or `ref=master`)?
-
-**Multi-platform hash pre-population**
-- Does the lockfile contain `h1:` hashes for all platforms where `terraform init` runs (dev machines + CI)?
-- If not, the team should run `terraform providers lock -platform=linux/amd64 -platform=darwin/arm64` (etc.) and commit the result.
-
-**CLI lockfile enforcement**
-- Does CI use `-lockfile=readonly` with `terraform init` / `tofu init`?
-
-**OpenTofu-specific (if applicable)**
-- Is the project on OpenTofu ≥ 1.8 if Dependabot is configured? (v1.8 is required for Dependabot support)
-- Is state encryption configured via `encryption {}` blocks? (OpenTofu feature — flag if missing)
-
-### Dependabot
-
-For each detected ecosystem, check `.github/dependabot.yml`:
-- Is there an `updates` entry for this ecosystem?
-- Does it have a `cooldown` block with `default-days` ≥ 1?
-- Are `semver-major-days` set higher than `semver-minor-days` and `semver-patch-days`?
-- **Terraform note:** The `terraform` ecosystem has a known Dependabot bug ([#13715](https://github.com/dependabot/dependabot-core/issues/13715)) where provider cooldowns may not be respected. Flag this as ⚠️ even if a cooldown is configured, and recommend exact `=` pinning as the primary control.
-
-### Harden-Runner
-
-For each workflow file in `.github/workflows/`:
-- Is `step-security/harden-runner@v2` the first step in every job that installs dependencies?
-- Is `egress-policy` set to `block` (not just `audit`)?
-- Is `disable-sudo: true` set?
-- Is `allowed-endpoints` defined?
+- `nodejs.exact_pins.unpinned` — list of `dependencies`/`devDependencies` using `^`, `~`, or ranges. Any entry here is a real finding.
+- `nodejs.minimum_release_age.status: fail` — no cooldown configured for the detected manager. Recommend adding it.
+- `rust.exact_pins.loose` — Cargo entries without `=` prefix. Flag each one.
+- `terraform.exact_pins.loose` — provider version constraints that aren't `= X.Y.Z`. Flag each one and note this requires human approval to change.
+- `dependabot.ecosystems.<eco>.status: warn` — ecosystem is in dependabot.yml but has no `cooldown:` block.
+- `dependabot.ecosystems.<eco>.status: missing` — ecosystem not in dependabot.yml at all.
+- `harden_runner.workflows.<name>.egress_policy: audit` — runner is present but in audit mode, not block. Flag as ⚠️.
+- `harden_runner.workflows.<name>.harden_runner_present: false` — missing entirely. Flag as ❌.
+- `terraform.known_bug` — always flag: Dependabot cooldown for terraform providers has a known bug; exact pinning is the primary control.
 
 ## Step 3: Report findings
 
-Present a structured audit report grouped by ecosystem. For each item use the ✅ / ⚠️ / ❌ markers. After the checklist, give a short prioritised summary: what poses the most supply chain risk right now, and what's quick to fix vs requires more thought.
+Present a structured audit report grouped by ecosystem. Use ✅ / ⚠️ / ❌ markers. After the per-ecosystem checklists, give a short prioritised summary: what poses the most supply chain risk right now, and what's quick to fix vs requires more thought.
 
-Keep the explanations grounded — don't list every possible issue for issues that are fine. Focus on what's actually wrong or missing.
+Only report on items that are actually wrong or missing — don't enumerate every passing check.
 
 Example report structure:
 
@@ -258,11 +120,9 @@ If the user agrees (fully or partially), apply the fixes in this order — lower
 3. `.cargo/config.toml` — add `[cooldown]` block
 4. `composer.json` — add `roave/security-advisories` dev dependency; tighten `^`/`~` pins to exact (flag for human review)
 5. Ruby CI — add `BUNDLE_FROZEN=true` and `bundle audit check` to CI workflow
-6. Terraform `*.tf` — tighten `~>` / `>=` constraints to `=` exact pins (flag for human review — this is a breaking change; do not apply autonomously, present the proposed changes and get explicit approval)
+6. Terraform `*.tf` — tighten `~>` / `>=` constraints to `=` exact pins (**do not apply autonomously** — present proposed changes and require explicit human approval; changing constraints can cause `terraform init` to fail)
 7. `.github/dependabot.yml` — add missing ecosystem entries with cooldown blocks
 8. `.github/workflows/*.yml` — add or update harden-runner steps
-
-**Terraform version-pinning caveat:** Changing `~>` to `=` in `required_providers` is functionally a breaking change that can cause `terraform init` to fail if the exact version isn't in the lockfile. Always present the proposed constraint changes and the matching `terraform providers lock` command as a unit, and require explicit human approval before applying.
 
 For each file you modify, show a clear before/after diff and explain what changed and why.
 
@@ -350,7 +210,7 @@ composer require --dev roave/security-advisories:dev-latest
       repo.packagist.org:443
 ```
 
-**Ruby CI install (Gemfile):**
+**Ruby CI install:**
 ```bash
 export BUNDLE_FROZEN=true
 bundle install --jobs 4 --retry 3
@@ -443,5 +303,77 @@ Append the ecosystem-specific endpoints:
 
 - **Never downgrade security.** If a stricter setting is already in place (e.g., a longer cooldown than the recommended 7 days), leave it as-is and note it as ✅.
 - **Don't touch version numbers in package manifests** unless the user explicitly asks. Pinning existing unpinned ranges is a breaking change that deserves separate review.
-- **Harden-Runner egress-policy**: always start new additions in `audit` mode, not `block`. Switching to `block` requires the user to first review the audit logs and build a confirmed allowlist. Note this clearly.
+- **Harden-Runner egress-policy**: always start new additions in `audit` mode, not `block`. Switching to `block` requires the user to first review the audit logs and build a confirmed allowlist.
 - **Flag items requiring human judgment** rather than silently skipping them — for example, if `onlyBuiltDependencies` is missing, list the packages that currently run build scripts and ask the user to confirm which should be allowed before writing the config.
+
+---
+
+## Reference: Manual Audit Checklist
+
+Use this section only if `audit.py` cannot be run. It replicates what the script checks.
+
+### Node.js (npm / pnpm / yarn / bun)
+
+- Is `package-lock.json` / `pnpm-lock.yaml` / `yarn.lock` / `bun.lock` present and not gitignored?
+- Do `dependencies` and `devDependencies` use exact versions (no `^` or `~`)?
+- npm ≥ 11.10: is `minimum-release-age` set in `.npmrc`?
+- pnpm ≥ 10.16: is `minimumReleaseAge` set in `pnpm-workspace.yaml`? Is `trustPolicy: no-downgrade` set?
+- Yarn Berry ≥ 4.10: is `npmMinimalAgeGate` set in `.yarnrc.yml`?
+- Bun ≥ 1.3: is `minimumReleaseAge` set in `bunfig.toml`?
+- pnpm: is `onlyBuiltDependencies` (allowlist) or `ignoredBuiltDependencies` configured?
+- Does CI use `npm ci` / `pnpm install --frozen-lockfile` / `yarn install --immutable` / `bun install --frozen-lockfile`?
+
+### Python (pip / uv)
+
+- uv: is `uv.lock` present and not gitignored? Are `exclude-newer`, `require-hashes`, `verify-hashes` set in `[tool.uv]`?
+- pip: is there a `requirements.lock` with hashes (from `pip-compile --generate-hashes`)?
+- Are all package specs using `==` (not `>=`, `~=`, or unpinned)?
+- uv: does CI use `uv sync --frozen`? pip: `pip install --require-hashes`?
+
+### Go
+
+- Are `go.mod` and `go.sum` both present and not gitignored?
+- Are all `require` entries using explicit tagged versions (not `@latest`, `@master`, `@main`)?
+- Is `GONOSUMDB` scoped only to private modules (not `*`)?
+- Does CI run `go mod verify` and `govulncheck ./...`?
+
+### Rust / Cargo
+
+- Is `Cargo.lock` present and not gitignored?
+- Do `Cargo.toml` dependencies use `=` exact version syntax?
+- Is `cargo-cooldown` configured in `.cargo/config.toml` with `[cooldown] days = 7`?
+- Does CI use `--locked` on `cargo build`/`cargo test` and run `cargo audit --deny warnings`?
+
+### PHP / Composer
+
+- Is `composer.lock` present and not gitignored?
+- Do all `require` entries use exact version strings (no `^`, `~`, `>=`, `*`)?
+- Is Composer 2.7 or later in use?
+- Does CI run `composer audit --locked`? Is `roave/security-advisories:dev-latest` a dev dependency?
+- Does CI use `COMPOSER_NO_INTERACTION=1` and `--no-scripts --no-plugins --prefer-dist`?
+
+### Ruby / Bundler
+
+- Is `Gemfile.lock` present and not gitignored?
+- Do all `gem` entries use exact versions (no `~>`, `>=`)?
+- Is `BUNDLE_FROZEN=true` set in CI?
+- Does CI run `bundle audit check`?
+- Is a `ruby` directive in `Gemfile` or a `.ruby-version` file committed?
+
+### Terraform / OpenTofu
+
+- Is `.terraform.lock.hcl` present in each root module, not gitignored, with multi-platform `h1:` hashes?
+- Do all `required_providers` blocks use `= X.Y.Z` exact constraints?
+- Does CI use `terraform init -lockfile=readonly`?
+- OpenTofu: is state encryption configured via `encryption {}` blocks?
+
+### Dependabot
+
+- Is `.github/dependabot.yml` present?
+- For each detected ecosystem, is there an `updates` entry with a `cooldown` block?
+- Terraform: note known cooldown bug (issue #13715) — exact pinning is the primary control.
+
+### Harden-Runner
+
+- Is `step-security/harden-runner@v2` the first step in every job that installs dependencies?
+- Is `egress-policy` set to `block` (not `audit`)? Is `disable-sudo: true` set?
