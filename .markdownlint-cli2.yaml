@@ -3,6 +3,10 @@
 # SPDX-License-Identifier: MIT
 
 config:
+  # Heading style — enforce ATX style (# Heading) consistently
+  MD003:
+    style: atx
+
   # Line length — documentation repos have intentionally long lines
   MD013: false
 
@@ -21,3 +25,4 @@ globs:
 ignores:
   - "node_modules"
   - ".git"
+  - ".pytest_cache"

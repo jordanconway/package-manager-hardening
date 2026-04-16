@@ -6,7 +6,6 @@ SPDX-License-Identifier: MIT
 
 # Cargo (Rust)
 
-
 **Configuration files:** `Cargo.toml`, `Cargo.lock`, `.cargo/config.toml`
 
 ## Cargo.lock
@@ -208,4 +207,3 @@ cargo audit --deny warnings
 ```
 
 ---
-

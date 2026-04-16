@@ -9,3 +9,6 @@ __pycache__/
 
 # uv local environment (CI uses pip directly)
 uv.lock
+
+# Node.js
+node_modules/

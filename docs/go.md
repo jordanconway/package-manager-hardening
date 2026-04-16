@@ -6,7 +6,6 @@ SPDX-License-Identifier: MIT
 
 # Go Modules
 
-
 **Configuration files:** `go.mod`, `go.sum`, environment variables (set in shell profile or CI)
 
 Go's module system is built into the `go` toolchain — there is no separate package manager to install.
@@ -15,7 +14,7 @@ Go's module system is built into the `go` toolchain — there is no separate pac
 
 `go.mod` declares the module path and all direct dependencies with minimum version requirements. `go.sum` records cryptographic hashes for all direct and transitive dependencies. Both files must be committed to source control.
 
-```
+```go
 // go.mod
 module github.com/myorg/myapp
 
@@ -136,4 +135,3 @@ git diff --exit-code go.mod go.sum   # fail if go.mod/go.sum was modified
 ```
 
 ---
-

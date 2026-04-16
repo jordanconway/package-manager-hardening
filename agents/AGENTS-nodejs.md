@@ -41,6 +41,7 @@ This project uses: <!-- npm | pnpm | yarn | bun — delete as appropriate -->
 When modifying dependency configuration, verify the following are in place:
 
 **For npm** (`.npmrc`):
+
 ```ini
 save-exact=true
 minimum-release-age=10080
@@ -49,6 +50,7 @@ fund=false
 ```
 
 **For pnpm** (`pnpm-workspace.yaml`):
+
 ```yaml
 minimumReleaseAge: "7 days"
 trustPolicy: no-downgrade
@@ -57,12 +59,14 @@ onlyBuiltDependencies:
 ```
 
 **For Yarn Berry** (`.yarnrc.yml`):
+
 ```yaml
 defaultSemverRangePrefix: ""
 npmMinimalAgeGate: 604800
 ```
 
 **For Bun** (`bunfig.toml`):
+
 ```toml
 [install]
 exact = true

@@ -171,7 +171,7 @@ Long-lived credentials stored as secrets are valid indefinitely if leaked. OIDC 
 
 Workflow files define what runs in CI and have access to all repository secrets. Require review from a specific team before any change to `.github/workflows/` is merged:
 
-```
+```text
 # .github/CODEOWNERS
 .github/workflows/ @your-org/security-team
 ```

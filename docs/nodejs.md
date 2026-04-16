@@ -6,7 +6,6 @@ SPDX-License-Identifier: MIT
 
 # Node.js Ecosystem
 
-
 ## npm
 
 **Configuration files:** `.npmrc` (per-project or global at `~/.npmrc`), `package.json`
@@ -469,4 +468,3 @@ bun install --frozen-lockfile
 ```
 
 ---
-

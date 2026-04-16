@@ -165,4 +165,3 @@ The lockfile provides a partial mitigation â€” it pins exact resolved versions â
 - [OpenTofu vs Terraform Differences](https://opentofu.org/docs/intro/migration/)
 - [Dependabot Terraform Ecosystem Docs](https://docs.github.com/en/code-security/dependabot/ecosystems-supported-by-dependabot/supported-package-ecosystems#terraform)
 - [Package Managers Need to Cool Down (Andrew Nesbitt)](https://nesbitt.io/2026/03/04/package-managers-need-to-cool-down.html)
-

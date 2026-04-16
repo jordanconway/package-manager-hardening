@@ -52,6 +52,7 @@ days = 7
 ```
 
 Then invoke via:
+
 ```bash
 cargo cooldown --days 7 build
 cargo cooldown --days 7 test
@@ -74,6 +75,7 @@ cargo audit --deny warnings       # fail on any RustSec advisory
 ```
 
 Install `cargo-audit` if not present:
+
 ```bash
 cargo install cargo-audit
 ```

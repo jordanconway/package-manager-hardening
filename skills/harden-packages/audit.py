@@ -25,6 +25,7 @@ from pathlib import Path
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def read(path):
     try:
         return Path(path).read_text(encoding="utf-8", errors="replace")
@@ -81,6 +82,7 @@ def status(ok):
 # Ecosystem detectors
 # ---------------------------------------------------------------------------
 
+
 def detect_ecosystems(root):
     detected = []
     r = Path(root)
@@ -113,6 +115,7 @@ def detect_ecosystems(root):
 # Per-ecosystem audits
 # ---------------------------------------------------------------------------
 
+
 def audit_nodejs(root):
     r = Path(root)
     findings = {}
@@ -136,6 +139,7 @@ def audit_nodejs(root):
     pkg = {}
     try:
         import json as _json
+
         pkg = _json.loads(read(r / "package.json"))
     except Exception:
         pass
@@ -172,7 +176,7 @@ def audit_nodejs(root):
     if manager == "pnpm":
         ws = read(r / "pnpm-workspace.yaml")
         age = find_value(ws, r'minimumReleaseAge[:\s]+["\']?([^\s"\']+)')
-        trust = find_value(ws, r'trustPolicy[:\s]+([^\s\n]+)')
+        trust = find_value(ws, r"trustPolicy[:\s]+([^\s\n]+)")
         mra["minimumReleaseAge"] = age
         mra["trustPolicy"] = trust
         mra["status"] = status(age is not None)
@@ -341,7 +345,8 @@ def audit_go(root):
 
     # CI checks
     has_verify = any(grep(c, r"go mod verify") for c in wfs.values())
-    has_tidy_check = any(grep(c, r"go mod tidy") and grep(c, r"git diff.*go\.(mod|sum)|go\.(mod|sum).*git diff") for c in wfs.values())
+    tidy_pattern = r"git diff.*go\.(mod|sum)|go\.(mod|sum).*git diff"
+    has_tidy_check = any(grep(c, r"go mod tidy") and grep(c, tidy_pattern) for c in wfs.values())
     has_govulncheck = any(grep(c, r"govulncheck") for c in wfs.values())
     findings["ci"] = {
         "go_mod_verify": has_verify,
@@ -367,7 +372,7 @@ def audit_rust(root):
     # Exact version pins (= prefix)
     cargo_toml = read(r / "Cargo.toml")
     # Strip [package] and [workspace] sections to avoid false positives on package metadata
-    dep_content = re.sub(r'^\[(package|workspace)\][^\[]*', '', cargo_toml, flags=re.MULTILINE | re.DOTALL)
+    dep_content = re.sub(r"^\[(package|workspace)\][^\[]*", "", cargo_toml, flags=re.MULTILINE | re.DOTALL)
     # Look for dependency entries without = prefix
     loose = re.findall(r'^\s*\w[\w-]*\s*=\s*["\'](?!=)([0-9^~><=*][^"\']*)["\']', dep_content, re.MULTILINE)
     # Also table-form deps
@@ -417,6 +422,7 @@ def audit_php(root):
     composer_json = {}
     try:
         import json as _json
+
         composer_json = _json.loads(read(r / "composer.json"))
     except Exception:
         pass
@@ -632,7 +638,9 @@ def audit_dependabot(root, detected_ecosystems):
                 "cooldown_default_days": cooldown_days,
             }
             if eco == "terraform":
-                eco_findings[eco]["known_bug"] = "Dependabot cooldown may not be respected for terraform providers (issue #13715)"
+                eco_findings[eco]["known_bug"] = (
+                    "Dependabot cooldown may not be respected for terraform providers (issue #13715)"
+                )
         else:
             eco_findings[eco] = {"status": "missing", "ecosystem_key": key}
 
@@ -644,6 +652,7 @@ def audit_dependabot(root, detected_ecosystems):
 # ---------------------------------------------------------------------------
 # Harden-Runner audit
 # ---------------------------------------------------------------------------
+
 
 def audit_harden_runner(root):
     wfs = workflow_files(root)
@@ -674,8 +683,13 @@ def audit_harden_runner(root):
             "status": wf_status,
         }
 
-    overall = "pass" if all(v["status"] == "pass" for v in results.values()) else \
-              "warn" if any(v["harden_runner_present"] for v in results.values()) else "fail"
+    overall = (
+        "pass"
+        if all(v["status"] == "pass" for v in results.values())
+        else "warn"
+        if any(v["harden_runner_present"] for v in results.values())
+        else "fail"
+    )
 
     return {"status": overall, "workflows": results}
 
@@ -684,8 +698,10 @@ def audit_harden_runner(root):
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="Harden-packages audit data collector")
     parser.add_argument("--path", default=".", help="Path to repository root")
     parser.add_argument("--pretty", action="store_true", help="Pretty-print JSON output")

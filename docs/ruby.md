@@ -98,6 +98,7 @@ Useful as a complementary check, particularly when the Ruby runtime version is m
 Some gems compile native C extensions during install (`extconf.rb`). This runs arbitrary code at install time, analogous to npm postinstall scripts. There is no native allowlist mechanism in Bundler (unlike pnpm's `onlyBuiltDependencies`).
 
 Mitigations:
+
 - Use `--no-cache` in CI to avoid reusing cached builds of potentially compromised versions
 - Review gems with native extensions before adding them
 - Pin exact versions so compiled artifacts correspond to a reviewed version

@@ -6,7 +6,6 @@ SPDX-License-Identifier: MIT
 
 # Dependabot Integration
 
-
 Configure cooldowns in `.github/dependabot.yml`. Each `updates` entry can have its own `cooldown` block with per-semver-level granularity:
 
 ```yaml
@@ -64,4 +63,3 @@ Per-package overrides using `include` and `exclude`:
 - **Security update PRs automatically bypass the cooldown** — a CVE-triggered Dependabot PR is never delayed, regardless of `cooldown` settings.
 - Cooldown only gates automated version update PRs. A developer running `npm install foo` or `go get` locally bypasses it entirely.
 - Supported for all ecosystems including npm, pip, gomod, cargo, NuGet, Helm, and more.
-

@@ -51,6 +51,7 @@ govulncheck ./...                          # scan for known vulnerabilities
 `govulncheck` is the preferred vulnerability scanner for Go — it checks whether vulnerable code paths are actually reachable in your binary, not just whether a module is present.
 
 Install it with:
+
 ```bash
 go install golang.org/x/vuln/cmd/govulncheck@latest
 ```

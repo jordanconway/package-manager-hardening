@@ -39,6 +39,7 @@ dependencies = [
 When modifying dependency configuration, verify the following are in place:
 
 **For uv** (`pyproject.toml`):
+
 ```toml
 [tool.uv]
 exclude-newer = "7 days"
@@ -51,6 +52,7 @@ verify-hashes = true
 **For pip + pip-tools:**
 
 Compile with hashes and install with hash enforcement:
+
 ```bash
 pip-compile pyproject.toml --generate-hashes --output-file requirements.lock
 pip install --require-hashes -r requirements.lock

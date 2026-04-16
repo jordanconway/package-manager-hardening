@@ -4,7 +4,9 @@ SPDX-FileCopyrightText: 2026 The Linux Foundation
 SPDX-License-Identifier: MIT
 -->
 
+<!-- markdownlint-disable MD003 -->
 ---
+
 name: harden-packages
 description: >
   Audit and harden package manager security configuration in a software repository.
@@ -15,8 +17,9 @@ description: >
   review CI/CD pipeline security. Also trigger when the user says things like "harden
   my repo", "check my dependencies", "is my package config secure?", "set up supply
   chain security", "add Dependabot", or "are my packages safe?". Works across Node.js
-  (npm/pnpm/yarn/bun), Python (pip/uv), Go, Rust/Cargo, PHP/Composer, Ruby/Bundler, and Terraform/OpenTofu repos.
+  (npm/pnpm/yarn/bun), Python (pip/uv), Go, Rust/Cargo, PHP/Composer, Ruby/Bundler, and Terraform/OpenTofu repos
 ---
+<!-- markdownlint-enable MD003 -->
 
 # Package Manager Hardening Skill
 
@@ -74,7 +77,7 @@ Only report on items that are actually wrong or missing — don't enumerate ever
 
 Example report structure:
 
-```
+```text
 ## Hardening Audit: [repo name]
 
 ### Stack detected
@@ -129,12 +132,14 @@ For each file you modify, show a clear before/after diff and explain what change
 ### Config templates to apply
 
 **pnpm-workspace.yaml additions:**
+
 ```yaml
 minimumReleaseAge: "7 days"
 trustPolicy: no-downgrade
 ```
 
 **npm .npmrc additions:**
+
 ```ini
 save-exact=true
 minimum-release-age=10080
@@ -143,12 +148,14 @@ fund=false
 ```
 
 **Yarn .yarnrc.yml additions:**
+
 ```yaml
 defaultSemverRangePrefix: ""
 npmMinimalAgeGate: 604800
 ```
 
 **Bun bunfig.toml additions:**
+
 ```toml
 [install]
 exact = true
@@ -157,6 +164,7 @@ lifecycleScripts = false
 ```
 
 **uv pyproject.toml additions:**
+
 ```toml
 [tool.uv]
 exclude-newer = "7 days"
@@ -165,12 +173,14 @@ verify-hashes = true
 ```
 
 **Cargo .cargo/config.toml additions:**
+
 ```toml
 [cooldown]
 days = 7
 ```
 
 **Dependabot cooldown block (per ecosystem):**
+
 ```yaml
 cooldown:
   default-days: 7
@@ -180,6 +190,7 @@ cooldown:
 ```
 
 **Composer CI install:**
+
 ```bash
 export COMPOSER_NO_INTERACTION=1
 composer install --no-scripts --no-plugins --prefer-dist
@@ -187,11 +198,13 @@ composer audit --locked
 ```
 
 **roave/security-advisories (add as dev dependency):**
+
 ```bash
 composer require --dev roave/security-advisories:dev-latest
 ```
 
 **Dependabot composer ecosystem entry:**
+
 ```yaml
   - package-ecosystem: "composer"
     directory: "/"
@@ -205,12 +218,14 @@ composer require --dev roave/security-advisories:dev-latest
 ```
 
 **Harden-Runner endpoints for Composer:**
+
 ```yaml
       packagist.org:443
       repo.packagist.org:443
 ```
 
 **Ruby CI install:**
+
 ```bash
 export BUNDLE_FROZEN=true
 bundle install --jobs 4 --retry 3
@@ -218,6 +233,7 @@ bundle exec bundle-audit check --update
 ```
 
 **Dependabot bundler ecosystem entry:**
+
 ```yaml
   - package-ecosystem: "bundler"
     directory: "/"
@@ -231,6 +247,7 @@ bundle exec bundle-audit check --update
 ```
 
 **Harden-Runner endpoints for Bundler:**
+
 ```yaml
       rubygems.org:443
       api.rubygems.org:443
@@ -238,6 +255,7 @@ bundle exec bundle-audit check --update
 ```
 
 **Terraform required_providers exact pinning:**
+
 ```hcl
 terraform {
   required_version = "= 1.9.8"
@@ -251,11 +269,13 @@ terraform {
 ```
 
 **Terraform CI init with lockfile enforcement:**
+
 ```bash
 terraform init -input=false -lockfile=readonly
 ```
 
 **Multi-platform provider lock (run locally, commit result):**
+
 ```bash
 terraform providers lock \
   -platform=linux/amd64 \
@@ -265,6 +285,7 @@ terraform providers lock \
 ```
 
 **Dependabot terraform ecosystem entry:**
+
 ```yaml
   - package-ecosystem: "terraform"
     directory: "/"
@@ -278,6 +299,7 @@ terraform providers lock \
 ```
 
 **Harden-Runner step (start in audit mode; switch to block after confirming allowlist):**
+
 ```yaml
 - uses: step-security/harden-runner@v2
   with:
@@ -290,6 +312,7 @@ terraform providers lock \
 ```
 
 Append the ecosystem-specific endpoints:
+
 - Node.js: `registry.npmjs.org:443` (add `npm.pkg.github.com:443` if GitHub Packages used)
 - Python: `pypi.org:443 files.pythonhosted.org:443`
 - Go: `proxy.golang.org:443 sum.golang.org:443 storage.googleapis.com:443`

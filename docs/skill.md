@@ -74,4 +74,3 @@ The skill audits all of the following, where applicable to the detected stack:
 - The skill never downgrades an existing security setting — if you already have a stricter cooldown than the recommended 7 days, it leaves it alone.
 - It starts Harden-Runner additions in `audit` mode, not `block`. Switching to block requires reviewing egress logs first, and the skill will explain how.
 - It will not change version numbers in package manifests without explicit instruction — pinning existing ranges is a breaking change that deserves separate review.
-

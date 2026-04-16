@@ -6,7 +6,6 @@ SPDX-License-Identifier: MIT
 
 # Harden-Runner: Runtime CI Hardening
 
-
 It is free for open source repositories.
 
 ## Recommended Rollout: Audit First, Then Block
@@ -97,4 +96,3 @@ Once the egress policy is stable, switch to `block` and enumerate only the endpo
 - The StepSecurity portal (`app.stepsecurity.io`) can auto-generate an `allowed-endpoints` policy from audit mode logs, which is the recommended way to build the initial allowlist rather than writing it by hand.
 
 ---
-

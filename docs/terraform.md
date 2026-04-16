@@ -6,7 +6,6 @@ SPDX-License-Identifier: MIT
 
 # Infrastructure as Code: Terraform and OpenTofu
 
-
 Terraform and OpenTofu manage cloud infrastructure via *providers* (plugins that talk to APIs) and *modules* (reusable configuration bundles). Both are distributed through registries rather than language-specific package indexes, but the supply chain risks are similar: a compromised provider or module version can exfiltrate credentials, modify infrastructure state, or create backdoors.
 
 ## Terraform
@@ -23,6 +22,7 @@ terraform init -upgrade     # re-resolves within constraints and updates lock
 ```
 
 The lock file stores two hash schemes per provider:
+
 - `zh:` — hash of the zip archive (populated from registry metadata on first init)
 - `h1:` — hash of the extracted binary (added when actually installed on a platform)
 
@@ -190,4 +190,3 @@ updates:
 > **Note:** Apply the same Dependabot provider cooldown caveat from the Terraform section — the bug affects OpenTofu equally. Exact version pinning remains the more reliable control.
 
 ---
-

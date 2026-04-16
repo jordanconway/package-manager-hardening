@@ -72,7 +72,7 @@ After copying, open the file and:
 
 For a monorepo containing multiple ecosystems, place a stack-specific `AGENTS.md` in the relevant subdirectory alongside the package manager config file for that language:
 
-```
+```text
 /                        ← root AGENTS.md (general project context)
 ├── services/api/        ← AGENTS.md (Node.js rules)
 ├── services/worker/     ← AGENTS.md (Python rules)

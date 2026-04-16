@@ -6,7 +6,6 @@ SPDX-License-Identifier: MIT
 
 # Python Ecosystem
 
-
 ## pip
 
 **Configuration files:** `pip.conf` (Unix: `~/.config/pip/pip.conf`, Windows: `%APPDATA%\pip\pip.ini`), `requirements.txt`, `pyproject.toml` (via build backends)
@@ -248,4 +247,3 @@ uv run pip-audit   # or: uvx pip-audit
 ```
 
 ---
-
