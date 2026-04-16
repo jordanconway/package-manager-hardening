@@ -24,10 +24,13 @@ exclude = [
   # Localhost and placeholder URLs
   "http://localhost",
   "https://example.com",
+  # claude.ai returns 403 for automated link checkers
+  "https://claude.ai",
 ]
 
 # Exclude paths from scanning
 exclude_path = [
   ".git",
   "node_modules",
+  ".pytest_cache",
 ]
