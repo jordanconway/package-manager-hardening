@@ -147,7 +147,8 @@ def audit_nodejs(root):
     elif pm_field.startswith("bun"):
         manager = "bun"
 
-    findings["manager"] = manager or "npm"
+    manager = manager or "npm"
+    findings["manager"] = manager
     findings["lockfile"] = {
         "file": lockfile,
         "status": status(lockfile is not None),
@@ -158,7 +159,7 @@ def audit_nodejs(root):
     loose = []
     for section in ("dependencies", "devDependencies", "peerDependencies"):
         for pkg_name, ver in pkg.get(section, {}).items():
-            if re.search(r"[\^~>]|latest|\\*", str(ver)):
+            if re.search(r"[\^~>*]|latest", str(ver)):
                 loose.append(f"{section}/{pkg_name}@{ver}")
     findings["exact_pins"] = {
         "status": status(len(loose) == 0),
@@ -332,7 +333,7 @@ def audit_go(root):
     # GONOSUMDB / GONOSUMCHECK set to * (disabling all sum checks)
     wfs = workflow_files(root)
     all_wf = "\n".join(wfs.values())
-    gonosumdb_all = grep(all_wf, r"GONOSUMDB\s*=\s*\*|GONOSUMCHECK\s*=\s*\*")
+    gonosumdb_all = grep(all_wf, r"GONOSUMDB\s*[=:]\s*['\"]?\*['\"]?|GONOSUMCHECK\s*[=:]\s*['\"]?\*['\"]?")
     findings["sum_database"] = {
         "status": status(not gonosumdb_all),
         "gonosumdb_wildcard": gonosumdb_all,
@@ -365,10 +366,12 @@ def audit_rust(root):
 
     # Exact version pins (= prefix)
     cargo_toml = read(r / "Cargo.toml")
+    # Strip [package] and [workspace] sections to avoid false positives on package metadata
+    dep_content = re.sub(r'^\[(package|workspace)\][^\[]*', '', cargo_toml, flags=re.MULTILINE | re.DOTALL)
     # Look for dependency entries without = prefix
-    loose = re.findall(r'^\s*\w[\w-]*\s*=\s*["\'](?!=)([0-9^~><=*][^"\']*)["\']', cargo_toml, re.MULTILINE)
+    loose = re.findall(r'^\s*\w[\w-]*\s*=\s*["\'](?!=)([0-9^~><=*][^"\']*)["\']', dep_content, re.MULTILINE)
     # Also table-form deps
-    loose += re.findall(r'version\s*=\s*["\'](?!=)([^"\']+)["\']', cargo_toml)
+    loose += re.findall(r'version\s*=\s*["\'](?!=)([^"\']+)["\']', dep_content)
     findings["exact_pins"] = {
         "status": status(len(loose) == 0),
         "loose": loose[:20],

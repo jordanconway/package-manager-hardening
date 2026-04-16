@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2026 The Linux Foundation
+#
+# SPDX-License-Identifier: MIT
+
+# Lychee link checker configuration
+# https://lychee.cli.rs/usage/configuration/
+
+# Treat HTTP 429 (rate limit) as a warning, not a failure
+accept = [200, 206, 429]
+
+# Retry transient failures
+max_retries = 3
+
+# Timeout per request (seconds)
+timeout = 20
+
+# Skip anchors (fragment URLs like #section) — these require full HTML parsing
+include_fragments = false
+
+# Exclude known-flaky or auth-gated URLs
+exclude = [
+  # GitHub blob URLs often return 429 for unauthenticated bots
+  "https://github.com/.*/blob/",
+  # Localhost and placeholder URLs
+  "http://localhost",
+  "https://example.com",
+]
+
+# Exclude paths from scanning
+exclude_path = [
+  ".git",
+  "node_modules",
+]

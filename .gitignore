@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 The Linux Foundation
+#
+# SPDX-License-Identifier: MIT
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# uv local environment (CI uses pip directly)
+uv.lock

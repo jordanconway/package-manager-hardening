@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 The Linux Foundation
+#
+# SPDX-License-Identifier: MIT
+
+config:
+  # Line length — documentation repos have intentionally long lines
+  MD013: false
+
+  # Inline HTML — SPDX comment headers use HTML comment syntax
+  MD033: false
+
+  # First line must be a heading — SPDX headers come before headings
+  MD041: false
+
+  # No duplicate headings — relaxed for large docs with repeated section names across files
+  MD024: false
+
+globs:
+  - "**/*.md"
+
+ignores:
+  - "node_modules"
+  - ".git"
