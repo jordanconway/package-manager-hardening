@@ -42,6 +42,7 @@ curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager
 curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-php.md
 curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-ruby.md
 curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-github-actions.md
+curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-docker.md
 ```
 
 **For on-demand auditing:** install the `harden-packages` skill and say `harden my repo` in Claude Code or Cowork.
@@ -73,6 +74,7 @@ cp -r skills/harden-packages ~/.claude/skills/
 | [Dependabot](docs/dependabot.md) | Cooldown configuration per ecosystem, semver-level delay, known Terraform provider bug |
 | [Harden-Runner](docs/harden-runner.md) | Runtime CI egress control, audit → block mode, per-ecosystem `allowed-endpoints` |
 | [GitHub Actions](docs/github-actions.md) | SHA pinning, least-privilege permissions, expression injection, OIDC, CODEOWNERS |
+| [Container Images](docs/docker.md) | Base image digest pinning, official images, distroless, Docker Scout, Cosign, Dependabot |
 
 ### AI assistant tooling
 
@@ -165,3 +167,8 @@ The lockfile provides a partial mitigation — it pins exact resolved versions �
 - [OpenTofu vs Terraform Differences](https://opentofu.org/docs/intro/migration/)
 - [Dependabot Terraform Ecosystem Docs](https://docs.github.com/en/code-security/dependabot/ecosystems-supported-by-dependabot/supported-package-ecosystems#terraform)
 - [Package Managers Need to Cool Down (Andrew Nesbitt)](https://nesbitt.io/2026/03/04/package-managers-need-to-cool-down.html)
+- [Docker Official Images](https://hub.docker.com/search?image_filter=official)
+- [Docker Content Trust](https://docs.docker.com/engine/security/trust/)
+- [Docker Scout](https://docs.docker.com/scout/)
+- [Sigstore Cosign](https://docs.sigstore.dev/cosign/overview/)
+- [GoogleContainerTools/distroless](https://github.com/GoogleContainerTools/distroless)

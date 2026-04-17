@@ -20,6 +20,7 @@ This repository includes ready-made `AGENTS.md` files for each supported stack. 
 | [`AGENTS-php.md`](../agents/AGENTS-php.md) | PHP / Composer projects |
 | [`AGENTS-ruby.md`](../agents/AGENTS-ruby.md) | Ruby / Bundler projects |
 | [`AGENTS-github-actions.md`](../agents/AGENTS-github-actions.md) | Repositories with GitHub Actions workflows |
+| [`AGENTS-docker.md`](../agents/AGENTS-docker.md) | Projects with Dockerfiles or container image builds |
 
 ## Installation
 
@@ -49,6 +50,9 @@ curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager
 
 # GitHub Actions (any language)
 curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-github-actions.md
+
+# Docker / container builds
+curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-docker.md
 ```
 
 Or clone and copy manually:
