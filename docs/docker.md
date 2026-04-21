@@ -75,7 +75,7 @@ docker pull node:20       # verifies signature before pulling
 docker push myorg/myapp   # signs on push
 ```
 
-For more flexible signing workflows — particularly for images built in CI — [Sigstore Cosign](https://docs.sigstore.dev/cosign/overview/) can sign images and attach attestations (SBOM, provenance) to the registry:
+For more flexible signing workflows — particularly for images built in CI — [Sigstore Cosign](https://docs.sigstore.dev/cosign/) can sign images and attach attestations (SBOM, provenance) to the registry:
 
 ```bash
 # Sign after push
@@ -99,7 +99,7 @@ docker scout cves myimage:latest
 docker scout quickview myimage:latest
 ```
 
-Docker Scout can be [configured as a GitHub Actions step](https://docs.docker.com/scout/integrations/ci/github-actions/) and will block a push if the image exceeds a defined CVE threshold.
+Docker Scout can be [configured as a GitHub Actions step](https://docs.docker.com/scout/integrations/ci/gha/) and will block a push if the image exceeds a defined CVE threshold.
 
 ## Dependabot for Base Images
 
@@ -124,7 +124,7 @@ Combine with a cooldown review process: let Dependabot open the PR, but require 
 - [Docker Verified Publishers](https://hub.docker.com/search?image_filter=store)
 - [Docker Content Trust documentation](https://docs.docker.com/engine/security/trust/)
 - [Docker Scout documentation](https://docs.docker.com/scout/)
-- [Sigstore Cosign](https://docs.sigstore.dev/cosign/overview/)
+- [Sigstore Cosign](https://docs.sigstore.dev/cosign/)
 - [GoogleContainerTools/distroless](https://github.com/GoogleContainerTools/distroless)
 - [Dependabot: Docker ecosystem](https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file#package-ecosystem)
-- [OpenSSF: Securing Your Software Supply Chain with Sigstore](https://openssf.org/blog/2022/01/13/securing-your-software-supply-chain-with-sigstore/)
+- [OpenSSF: Sigstore: Simplifying Code Signing for Open Source Ecosystems](https://openssf.org/blog/2023/11/21/sigstore-simplifying-code-signing-for-open-source-ecosystems/)
