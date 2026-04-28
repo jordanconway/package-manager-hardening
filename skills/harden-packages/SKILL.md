@@ -1,12 +1,4 @@
-<!--
-SPDX-FileCopyrightText: 2026 The Linux Foundation
-
-SPDX-License-Identifier: MIT
--->
-
-<!-- markdownlint-disable MD003 -->
 ---
-
 name: harden-packages
 description: >
   Audit and harden package manager security configuration in a software repository.
@@ -19,7 +11,11 @@ description: >
   chain security", "add Dependabot", or "are my packages safe?". Works across Node.js
   (npm/pnpm/yarn/bun), Python (pip/uv), Go, Rust/Cargo, PHP/Composer, Ruby/Bundler, and Terraform/OpenTofu repos
 ---
-<!-- markdownlint-enable MD003 -->
+
+<!--
+SPDX-FileCopyrightText: 2026 The Linux Foundation
+SPDX-License-Identifier: MIT
+-->
 
 # Package Manager Hardening Skill
 
