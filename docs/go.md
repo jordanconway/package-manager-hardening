@@ -144,7 +144,7 @@ govulncheck ./...                       # install with a pinned version, not @la
 
 The `go` directive in `go.mod` must include the **full patch version**:
 
-```
+```go
 go 1.25.9   # correct: govulncheck uses this as the stdlib CVE baseline
 go 1.25.0   # incorrect: govulncheck reports all CVEs fixed in 1.25.1+ as active
 go 1.25     # incorrect: go mod tidy normalises this to go 1.25.0

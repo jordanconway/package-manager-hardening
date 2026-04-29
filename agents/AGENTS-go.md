@@ -122,7 +122,7 @@ Jobs that use a reusable workflow at the job level (`uses:` as a job-level key r
 
 The `go` directive in `go.mod` must include the **full patch version**, e.g.:
 
-```
+```go
 go 1.25.9
 ```
 

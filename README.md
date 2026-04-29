@@ -43,6 +43,7 @@ curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager
 curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-ruby.md
 curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-github-actions.md
 curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-docker.md
+curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-helm.md
 ```
 
 **For on-demand auditing:** install the `harden-packages` skill and say `harden my repo` in Claude Code or Cowork.
@@ -66,6 +67,7 @@ cp -r skills/harden-packages ~/.claude/skills/
 | [PHP](docs/php.md) | Composer — lockfile enforcement, exact pinning, `composer audit`, `roave/security-advisories`, build script control |
 | [Ruby](docs/ruby.md) | Bundler — `Gemfile.lock`, exact pinning, `BUNDLE_FROZEN`, `bundler-audit`, Dependabot cooldown |
 | [Terraform / OpenTofu](docs/terraform.md) | Provider pinning, `.terraform.lock.hcl`, multi-platform hashes, `-lockfile=readonly`, OpenTofu differences |
+| [Helm](docs/helm.md) | `Chart.yaml` exact pinning, `Chart.lock`, `helm dependency build`, OCI digest pinning, `--verify` / cosign, Renovate cooldowns, Helmfile |
 
 ### Cross-cutting controls
 
@@ -98,6 +100,7 @@ cp -r skills/harden-packages ~/.claude/skills/
 | [Cargo](docs/rust.md#cargo-rust) | ❌ No | — | (use `cargo-cooldown`) | — |
 | [Go modules](docs/go.md#go-modules) | ❌ No | — | (use Dependabot or proxy) | — |
 | [Composer](docs/php.md#composer) | ❌ No | — | (use Dependabot + exact pins) | — |
+| [Helm](docs/helm.md) | ❌ No | — | (use Renovate `minimumReleaseAge`; Dependabot does not support Helm chart deps) | — |
 | [Bundler](docs/ruby.md#bundler) | ❌ No | — | (use Dependabot + exact pins) | — |
 | [Terraform](docs/terraform.md#terraform) / [OpenTofu](docs/terraform.md#opentofu) | ❌ No | — | (use exact `=` pins + Dependabot²) | — |
 
