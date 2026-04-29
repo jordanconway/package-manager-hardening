@@ -125,6 +125,7 @@ The lockfile provides a partial mitigation — it pins exact resolved versions �
 | [Composer](docs/php.md#composer) | `^` (caret) | `^1.2.3` `~1.2.3` `>=1.0` `1.2.*` | `1.2.3` | ✅ Yes — `composer install` enforces it | Use bare version strings in `composer.json` |
 | [Bundler](docs/ruby.md#bundler) | `~>` (pessimistic) | `~> 7.1` `~> 7.1.3` `>= 7.1.0` | `7.1.3` | ✅ Yes — `BUNDLE_FROZEN=true` | Use bare version strings in `Gemfile` |
 | [Terraform](docs/terraform.md#terraform) / [OpenTofu](docs/terraform.md#opentofu) | `~>` (patch-only by default²) | `~> 5.0` `>= 5.0` `>= 5.0, < 6.0` | `= 5.31.0` | ✅ Yes — `.terraform.lock.hcl`; `-lockfile=readonly` | Use `= X.Y.Z` in `required_providers`; run `terraform providers lock` for multi-platform hashes |
+| [Helm](docs/helm.md) | None (user-specified, SemVer ranges accepted) | `^15.5.0` `~15.5` `>=15.0.0` `15.x.x` | `15.5.20` | ✅ Yes — `Chart.lock` digest; `helm dependency build` enforces it | Use bare exact versions in `Chart.yaml` `dependencies[].version`; never run `helm dependency update` in CI |
 
 **¹ Go's Minimum Version Selection (MVS)** works differently from other package managers. A `require` directive specifies the *minimum acceptable version*, and Go always resolves to that exact version (never newer) unless you explicitly run `go get -u`. This makes Go more conservative by default — it will not silently adopt new versions without an explicit developer action. However, `go get -u` and `go get @latest` bypass this safety and should be avoided in favour of pinning explicit tagged versions. The same rule applies to `go install` invocations in Makefiles and CI scripts — never use `@latest`; always pin `@vX.Y.Z`.
 
@@ -166,6 +167,11 @@ The lockfile provides a partial mitigation — it pins exact resolved versions �
 - [Terraform Dependency Lock File](https://developer.hashicorp.com/terraform/language/files/dependency-lock)
 - [Terraform Version Constraints](https://developer.hashicorp.com/terraform/language/expressions/version-constraints)
 - [OpenTofu Provider Requirements](https://opentofu.org/docs/language/providers/requirements/)
+- [Helm Chart Dependencies](https://helm.sh/docs/helm/helm_dependency/)
+- [Helm Provenance and Integrity](https://helm.sh/docs/topics/provenance/)
+- [Helm Registries (OCI)](https://helm.sh/docs/topics/registries/)
+- [Renovate Helm Manager](https://docs.renovatebot.com/modules/manager/helmv3/)
+- [Renovate minimumReleaseAge](https://docs.renovatebot.com/configuration-options/#minimumreleaseage)
 - [OpenTofu Dependency Lock File](https://opentofu.org/docs/language/files/dependency-lock/)
 - [OpenTofu vs Terraform Differences](https://opentofu.org/docs/intro/migration/)
 - [Dependabot Terraform Ecosystem Docs](https://docs.github.com/en/code-security/dependabot/ecosystems-supported-by-dependabot/supported-package-ecosystems#terraform)
