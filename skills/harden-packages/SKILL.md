@@ -324,6 +324,10 @@ Append the ecosystem-specific endpoints:
 - **Don't touch version numbers in package manifests** unless the user explicitly asks. Pinning existing unpinned ranges is a breaking change that deserves separate review.
 - **Harden-Runner egress-policy**: always start new additions in `audit` mode, not `block`. Switching to `block` requires the user to first review the audit logs and build a confirmed allowlist.
 - **Flag items requiring human judgment** rather than silently skipping them — for example, if `onlyBuiltDependencies` is missing, list the packages that currently run build scripts and ask the user to confirm which should be allowed before writing the config.
+- **`go install` pinning**: never use `@latest`, `@master`, or `@main` in any `go install` invocation — in Makefiles, scripts, or CI workflows. Always use an explicit `@vX.Y.Z`. The go sum database provides hash verification but the version itself is still mutable without an explicit pin.
+- **Go stdlib CVEs**: standard library vulnerabilities cannot be fixed by bumping a `require` entry — they require upgrading the `go` directive in `go.mod` to the patched Go release. When govulncheck reports stdlib findings, check the "Fixed in" version and update the `go` directive accordingly.
+- **Go `go` directive format**: use the full patch version (`go 1.25.9`), not the bare minor (`go 1.25`) or base patch (`go 1.25.0`). `go mod tidy` preserves fully-specified patch versions but normalises `go 1.25` → `go 1.25.0`. govulncheck reads the `go` directive as the stdlib CVE baseline — `go 1.25.0` will surface all CVEs fixed in 1.25.1 through the latest patch. Do **not** split a patch-versioned `go` directive into `go 1.25` + `toolchain go1.25.9` on the assumption that the toolchain directive covers CVE exposure — it does not; only the `go` directive does.
+- **Reusable workflow pinning**: job-level `uses:` entries that delegate to a reusable workflow (e.g., SLSA generators, shared org workflows) are mutable refs and must be SHA-pinned, just like step-level actions. They cannot receive harden-runner steps, so flag them separately.
 
 ---
 
@@ -355,6 +359,12 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
 - Are all `require` entries using explicit tagged versions (not `@latest`, `@master`, `@main`)?
 - Is `GONOSUMDB` scoped only to private modules (not `*`)?
 - Does CI run `go mod verify` and `govulncheck ./...`?
+- Does CI run `go mod verify` **before** `go build`? A tampered or stale module graph must be caught before the compiler touches any dependency.
+- Does the `go mod tidy` diff check use `git diff --exit-code -- go.mod go.sum` (with the `--` pathspec separator)? Does it also run before `go build`?
+- Is `GOTOOLCHAIN=local` set in CI? Without it, the go binary can silently auto-fetch a different toolchain at runtime even after `actions/setup-go` has installed the intended version.
+- Does the `go` directive in `go.mod` include the full patch version (e.g., `go 1.25.9` not `go 1.25` or `go 1.25.0`)? **govulncheck reads the `go` directive — not `go env GOVERSION` — as the stdlib baseline for CVE analysis.** A bare `go 1.25.0` causes govulncheck to report all CVEs fixed in later patch releases as active, even if the installed toolchain is already patched.
+- Are Makefile or script `go install` invocations pinned to explicit versions (not `@latest`, `@master`, `@main`)? `go install` with `@latest` is the same supply-chain risk as an unpinned GitHub Action — the only difference is that the go sum database verifies the hash, but the version itself is still mutable.
+- Does CI install tools via `make <target>` that the job doesn't actually use? If so, extract only the needed commands rather than running the full target (e.g., don't run a `deps` target that installs a linter when the job never calls `make lint`).
 
 ### Rust / Cargo
 
@@ -396,3 +406,4 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
 
 - Is `step-security/harden-runner@v2` the first step in every job that installs dependencies?
 - Is `egress-policy` set to `block` (not `audit`)? Is `disable-sudo: true` set?
+- Are job-level `uses:` entries (reusable workflows) SHA-pinned? These are mutable refs just like step-level `uses:` but **cannot receive harden-runner steps** — the entire job is delegated to the reusable workflow. Flag unpinned reusable workflow refs separately from the harden-runner audit.

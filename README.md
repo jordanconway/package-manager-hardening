@@ -61,7 +61,7 @@ cp -r skills/harden-packages ~/.claude/skills/
 |-----|--------|
 | [Node.js](docs/nodejs.md) | npm, pnpm, Yarn, Bun — lockfiles, version pinning, minimum release age, build script control, CI config |
 | [Python](docs/python.md) | pip / pip-tools, uv — lockfiles, hash verification, `exclude-newer`, frozen installs |
-| [Go](docs/go.md) | Go modules — `go.sum`, MVS pinning, `GOPRIVATE`, `govulncheck`, CI verification |
+| [Go](docs/go.md) | Go modules — `go.sum`, MVS pinning, `GOPRIVATE`, `govulncheck`, CI step ordering, `go` directive patch versioning, `go install` pinning, `GOTOOLCHAIN=local` |
 | [Rust](docs/rust.md) | Cargo — exact version pinning, `cargo-cooldown`, `cargo audit`, lockfile enforcement |
 | [PHP](docs/php.md) | Composer — lockfile enforcement, exact pinning, `composer audit`, `roave/security-advisories`, build script control |
 | [Ruby](docs/ruby.md) | Bundler — `Gemfile.lock`, exact pinning, `BUNDLE_FROZEN`, `bundler-audit`, Dependabot cooldown |
@@ -123,7 +123,7 @@ The lockfile provides a partial mitigation — it pins exact resolved versions �
 | [Bundler](docs/ruby.md#bundler) | `~>` (pessimistic) | `~> 7.1` `~> 7.1.3` `>= 7.1.0` | `7.1.3` | ✅ Yes — `BUNDLE_FROZEN=true` | Use bare version strings in `Gemfile` |
 | [Terraform](docs/terraform.md#terraform) / [OpenTofu](docs/terraform.md#opentofu) | `~>` (patch-only by default²) | `~> 5.0` `>= 5.0` `>= 5.0, < 6.0` | `= 5.31.0` | ✅ Yes — `.terraform.lock.hcl`; `-lockfile=readonly` | Use `= X.Y.Z` in `required_providers`; run `terraform providers lock` for multi-platform hashes |
 
-**¹ Go's Minimum Version Selection (MVS)** works differently from other package managers. A `require` directive specifies the *minimum acceptable version*, and Go always resolves to that exact version (never newer) unless you explicitly run `go get -u`. This makes Go more conservative by default — it will not silently adopt new versions without an explicit developer action. However, `go get -u` and `go get @latest` bypass this safety and should be avoided in favour of pinning explicit tagged versions.
+**¹ Go's Minimum Version Selection (MVS)** works differently from other package managers. A `require` directive specifies the *minimum acceptable version*, and Go always resolves to that exact version (never newer) unless you explicitly run `go get -u`. This makes Go more conservative by default — it will not silently adopt new versions without an explicit developer action. However, `go get -u` and `go get @latest` bypass this safety and should be avoided in favour of pinning explicit tagged versions. The same rule applies to `go install` invocations in Makefiles and CI scripts — never use `@latest`; always pin `@vX.Y.Z`.
 
 **² Terraform and OpenTofu `~>` semantics:** The pessimistic constraint `~> 5.0` allows any `5.x` release (equivalent to `>= 5.0, < 6.0`), while `~> 5.31.0` allows only `5.31.x` patch releases. Neither form is as restrictive as exact pinning. Unlike other ecosystems there is also no native cooldown — the `.terraform.lock.hcl` lockfile records hashes of the resolved version but does not prevent automatic adoption of new versions when `terraform init -upgrade` is run or when Dependabot opens a PR. Exact pinning with `= 5.31.0` is the only reliable defence. Note: Dependabot cooldown for the `terraform` ecosystem is affected by a known bug (GitHub issue [#13715](https://github.com/dependabot/dependabot-core/issues/13715)) that may prevent provider updates from respecting cooldown days — use exact pinning as the primary control.
 

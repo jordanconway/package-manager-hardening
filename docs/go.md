@@ -127,11 +127,45 @@ git diff --exit-code vendor/     # fail if vendor/ was modified
 GOPROXY="https://proxy.golang.org,direct"
 GOPRIVATE="github.com/myorg/*"
 GONOSUMDB="github.com/myorg/*"
+GOTOOLCHAIN=local          # prevent the go binary from auto-fetching a toolchain at runtime
+```
 
-# CI commands
+Run checks in this order — integrity verification must run **before** the build:
+
+```bash
 go mod verify
 go mod tidy
-git diff --exit-code go.mod go.sum   # fail if go.mod/go.sum was modified
+git diff --exit-code -- go.mod go.sum   # note the -- separator
+# ... build and test steps ...
+govulncheck ./...                       # install with a pinned version, not @latest
 ```
+
+## go Directive Version
+
+The `go` directive in `go.mod` must include the **full patch version**:
+
+```
+go 1.25.9   # correct: govulncheck uses this as the stdlib CVE baseline
+go 1.25.0   # incorrect: govulncheck reports all CVEs fixed in 1.25.1+ as active
+go 1.25     # incorrect: go mod tidy normalises this to go 1.25.0
+```
+
+`govulncheck` reads the `go` directive (not `go env GOVERSION`) to determine which stdlib version is in use. Always set it to the exact patched release. Stdlib CVEs cannot be fixed by bumping a `require` entry — only by upgrading the `go` directive.
+
+Do **not** split a patch version into `go 1.25` + `toolchain go1.25.9` to work around this — `govulncheck` does not read the `toolchain` directive for CVE analysis.
+
+## go install Pinning
+
+Every `go install` invocation must pin an explicit version — in Makefiles, scripts, and CI:
+
+```bash
+# correct
+go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
+
+# incorrect — never use
+go install golang.org/x/vuln/cmd/govulncheck@latest
+```
+
+`@latest` is the same supply-chain risk as an unpinned GitHub Action. The go sum database verifies the hash of whatever resolves, but the version itself remains mutable.
 
 ---
