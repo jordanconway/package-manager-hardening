@@ -176,7 +176,7 @@ Security update PRs from Dependabot bypass the cooldown automatically and should
 Every GitHub Actions workflow that runs `mvn` or `./gradlew` must include `step-security/harden-runner` as its first step. Start in `audit` mode for new workflows, then tighten to `block` once the egress policy is stable:
 
 ```yaml
-- uses: step-security/harden-runner@bb774aa972c2a89ff34781233d275075cbddf542 # v2
+- uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2
   with:
     egress-policy: block
     disable-sudo: true
