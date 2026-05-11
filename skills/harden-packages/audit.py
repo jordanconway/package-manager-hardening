@@ -110,8 +110,12 @@ def detect_ecosystems(root):
 
     if (r / "pom.xml").exists():
         detected.append("maven")
-    if (r / "build.gradle").exists() or (r / "build.gradle.kts").exists() \
-            or (r / "settings.gradle").exists() or (r / "settings.gradle.kts").exists():
+    if (
+        (r / "build.gradle").exists()
+        or (r / "build.gradle.kts").exists()
+        or (r / "settings.gradle").exists()
+        or (r / "settings.gradle.kts").exists()
+    ):
         detected.append("gradle")
 
     return detected
@@ -636,9 +640,7 @@ def audit_maven(root):
     require_plugin_versions = bool(re.search(r"<requirePluginVersions\b", pom))
     require_release_deps = bool(re.search(r"<requireReleaseDeps\b", pom))
     dependency_convergence = bool(re.search(r"<dependencyConvergence\s*/?>", pom))
-    rules_present = sum(
-        [ban_dynamic, require_plugin_versions, require_release_deps, dependency_convergence]
-    )
+    rules_present = sum([ban_dynamic, require_plugin_versions, require_release_deps, dependency_convergence])
     findings["enforcer_plugin"] = {
         "present": has_enforcer,
         "ban_dynamic_versions": ban_dynamic,
@@ -652,9 +654,7 @@ def audit_maven(root):
     # for --strict-checksums / -C in CI workflows.
     wfs = workflow_files(root)
     all_wf = "\n".join(wfs.values())
-    strict_in_pom = "fail" in re.findall(
-        r"<checksumPolicy>([^<]+)</checksumPolicy>", pom
-    )
+    strict_in_pom = "fail" in re.findall(r"<checksumPolicy>([^<]+)</checksumPolicy>", pom)
     strict_in_ci = grep(all_wf, r"--strict-checksums|\s-C\b")
     findings["strict_checksums"] = {
         "in_pom": strict_in_pom,
@@ -704,13 +704,7 @@ def audit_gradle(root):
     # "group:name:1.+" / "group:name:latest.release" / "group:name:[1.0,2.0)"
     for m in re.finditer(r'["\']([\w.\-]+):([\w.\-]+):([^"\']+)["\']', build_content):
         ver = m.group(3)
-        if (
-            "+" in ver
-            or "latest" in ver.lower()
-            or ver.startswith("[")
-            or ver.startswith("(")
-            or "SNAPSHOT" in ver
-        ):
+        if "+" in ver or "latest" in ver.lower() or ver.startswith("[") or ver.startswith("(") or "SNAPSHOT" in ver:
             loose.append(f"{m.group(1)}:{m.group(2)}:{ver}")
     findings["exact_pins"] = {
         "status": status(len(loose) == 0),
@@ -760,9 +754,7 @@ def audit_gradle(root):
         "fail_on_project_repos": fail_on_project_repos,
         "uses_mavenLocal": uses_maven_local,
         "uses_jcenter": uses_jcenter,
-        "status": status(
-            fail_on_project_repos and not uses_maven_local and not uses_jcenter
-        ),
+        "status": status(fail_on_project_repos and not uses_maven_local and not uses_jcenter),
     }
 
     # Reproducible resolution (rejects dynamic/changing/mutable)
@@ -863,12 +855,8 @@ def audit_dependabot(root, detected_ecosystems):
             if eco == "gradle":
                 # Gradle Wrapper version is a separate Dependabot ecosystem;
                 # surface it as a sub-finding so the LLM can flag if missing.
-                wrapper_present = grep(
-                    content, r'package-ecosystem:\s*["\']?gradle-wrapper["\']?'
-                )
-                eco_findings[eco]["gradle_wrapper_ecosystem"] = (
-                    "pass" if wrapper_present else "missing"
-                )
+                wrapper_present = grep(content, r'package-ecosystem:\s*["\']?gradle-wrapper["\']?')
+                eco_findings[eco]["gradle_wrapper_ecosystem"] = "pass" if wrapper_present else "missing"
         else:
             eco_findings[eco] = {"status": "missing", "ecosystem_key": key}
 
