@@ -120,7 +120,7 @@ Every GitHub Actions workflow that fetches crates must include `step-security/ha
 Start in `audit` mode for new workflows, then tighten to `block` once the egress policy is stable:
 
 ```yaml
-- uses: step-security/harden-runner@v2
+- uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2
   with:
     egress-policy: block
     disable-sudo: true

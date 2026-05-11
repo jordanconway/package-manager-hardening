@@ -68,7 +68,7 @@ See [harden-runner.md](harden-runner.md) for full configuration guidance. The sh
 
 ```yaml
 steps:
-  - uses: step-security/harden-runner@bb774aa972c2a89ff34781233d275075cbddf542 # v2
+  - uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2
     with:
       egress-policy: block
       disable-sudo: true
