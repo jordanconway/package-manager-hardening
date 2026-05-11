@@ -6,7 +6,7 @@ SPDX-License-Identifier: MIT
 
 # Package Manager Security Hardening
 
-A reference for hardening software supply chains across npm, pnpm, Yarn, Bun, pip, uv, Go modules, Cargo, Terraform, and OpenTofu.
+A reference for hardening software supply chains across npm, pnpm, Yarn, Bun, pip, uv, Go modules, Cargo, Maven, Gradle, Terraform, and OpenTofu.
 
 Supply chain attacks typically succeed through one of a small number of vectors: a loose version constraint allows a newly published malicious version to be silently pulled in; a missing or unenforced lockfile lets an attacker's package substitute for a legitimate one; a compromised maintainer account publishes a backdoored patch release that lands in CI within minutes of publication; or a package's postinstall script runs arbitrary code during a routine `npm install`. This repository addresses all of these through a layered set of controls applied consistently across ecosystems.
 
@@ -44,6 +44,7 @@ curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager
 curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-github-actions.md
 curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-docker.md
 curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-helm.md
+curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-jvm.md
 ```
 
 **For on-demand auditing:** install the `harden-packages` skill and say `harden my repo` in Claude Code or Cowork.
@@ -68,6 +69,7 @@ cp -r skills/harden-packages ~/.claude/skills/
 | [Ruby](docs/ruby.md) | Bundler — `Gemfile.lock`, exact pinning, `BUNDLE_FROZEN`, `bundler-audit`, Dependabot cooldown |
 | [Terraform / OpenTofu](docs/terraform.md) | Provider pinning, `.terraform.lock.hcl`, multi-platform hashes, `-lockfile=readonly`, OpenTofu differences |
 | [Helm](docs/helm.md) | `Chart.yaml` exact pinning, `Chart.lock`, `helm dependency build`, OCI digest pinning, `--verify` / cosign, Renovate cooldowns, Helmfile |
+| [JVM (Java/Kotlin)](docs/jvm.md) | Maven, Gradle — exact pinning, `<dependencyManagement>`, maven-enforcer, `gradle.lockfile`, dependency verification (`verification-metadata.xml`), Gradle Wrapper SHA pinning, repository control |
 
 ### Cross-cutting controls
 
@@ -101,6 +103,8 @@ cp -r skills/harden-packages ~/.claude/skills/
 | [Go modules](docs/go.md#go-modules) | ❌ No | — | (use Dependabot or proxy) | — |
 | [Composer](docs/php.md#composer) | ❌ No | — | (use Dependabot + exact pins) | — |
 | [Helm](docs/helm.md) | ❌ No | — | (use Renovate `minimumReleaseAge`; Dependabot does not support Helm chart deps) | — |
+| [Maven](docs/jvm.md#maven) | ❌ No | — | (use Dependabot + exact pins + maven-enforcer `banDynamicVersions`) | — |
+| [Gradle](docs/jvm.md#gradle) | ❌ No | — | (use Dependabot + `dependencyLocking` + `verification-metadata.xml`) | — |
 | [Bundler](docs/ruby.md#bundler) | ❌ No | — | (use Dependabot + exact pins) | — |
 | [Terraform](docs/terraform.md#terraform) / [OpenTofu](docs/terraform.md#opentofu) | ❌ No | — | (use exact `=` pins + Dependabot²) | — |
 
@@ -126,10 +130,14 @@ The lockfile provides a partial mitigation — it pins exact resolved versions �
 | [Bundler](docs/ruby.md#bundler) | `~>` (pessimistic) | `~> 7.1` `~> 7.1.3` `>= 7.1.0` | `7.1.3` | ✅ Yes — `BUNDLE_FROZEN=true` | Use bare version strings in `Gemfile` |
 | [Terraform](docs/terraform.md#terraform) / [OpenTofu](docs/terraform.md#opentofu) | `~>` (patch-only by default²) | `~> 5.0` `>= 5.0` `>= 5.0, < 6.0` | `= 5.31.0` | ✅ Yes — `.terraform.lock.hcl`; `-lockfile=readonly` | Use `= X.Y.Z` in `required_providers`; run `terraform providers lock` for multi-platform hashes |
 | [Helm](docs/helm.md) | None (user-specified, SemVer ranges accepted) | `^15.5.0` `~15.5` `>=15.0.0` `15.x.x` | `15.5.20` | ✅ Yes — `Chart.lock` digest; `helm dependency build` enforces it | Use bare exact versions in `Chart.yaml` `dependencies[].version`; never run `helm dependency update` in CI |
+| [Maven](docs/jvm.md#maven) | Soft requirement (exact unless overridden) | `[3.2,)` `[3.2,4.0)` `LATEST` `RELEASE` `3.2-SNAPSHOT` | `3.2.1` | ❌ No native lockfile³ | Pin every direct dep + transitive in `<dependencyManagement>`; enforce via `maven-enforcer-plugin` `banDynamicVersions` + `requirePluginVersions` |
+| [Gradle](docs/jvm.md#gradle) | Exact when written exact; dynamic syntax permitted | `1.+` `latest.release` `[1.2,2.0)` `1.2.3-SNAPSHOT` | `1.2.3` | ✅ Yes — `gradle.lockfile` with `LockMode.STRICT`; `gradle/verification-metadata.xml` adds SHA-256/PGP verification | `failOnNonReproducibleResolution()` + `dependencyLocking { lockAllConfigurations() }` + write verification metadata |
 
 **¹ Go's Minimum Version Selection (MVS)** works differently from other package managers. A `require` directive specifies the *minimum acceptable version*, and Go always resolves to that exact version (never newer) unless you explicitly run `go get -u`. This makes Go more conservative by default — it will not silently adopt new versions without an explicit developer action. However, `go get -u` and `go get @latest` bypass this safety and should be avoided in favour of pinning explicit tagged versions. The same rule applies to `go install` invocations in Makefiles and CI scripts — never use `@latest`; always pin `@vX.Y.Z`.
 
 **² Terraform and OpenTofu `~>` semantics:** The pessimistic constraint `~> 5.0` allows any `5.x` release (equivalent to `>= 5.0, < 6.0`), while `~> 5.31.0` allows only `5.31.x` patch releases. Neither form is as restrictive as exact pinning. Unlike other ecosystems there is also no native cooldown — the `.terraform.lock.hcl` lockfile records hashes of the resolved version but does not prevent automatic adoption of new versions when `terraform init -upgrade` is run or when Dependabot opens a PR. Exact pinning with `= 5.31.0` is the only reliable defence. Note: Dependabot cooldown for the `terraform` ecosystem is affected by a known bug (GitHub issue [#13715](https://github.com/dependabot/dependabot-core/issues/13715)) that may prevent provider updates from respecting cooldown days — use exact pinning as the primary control.
+
+**³ Maven has no native lockfile.** The `pom.xml` is the only manifest, and transitive versions are re-resolved on every build unless every direct *and* transitive coordinate is explicitly pinned in `<dependencyManagement>`. Combine this with `maven-enforcer-plugin` rules (`banDynamicVersions`, `requirePluginVersions`, `requireReleaseDeps`, `dependencyConvergence`) to fail the build on any unpinned or ranged dependency. Third-party plugins such as `io.github.chains-project:maven-lockfile` can add hash-based reproducibility if required. Maven also defaults to `warn` (not `fail`) on checksum mismatches — set `<checksumPolicy>fail</checksumPolicy>` or pass `--strict-checksums`.
 
 **Key observation:** For Node.js tools, Cargo, and uv, the lockfile is a strong control *only when actively enforced*. If CI runs `npm install` instead of `npm ci`, or if a developer installs a new dependency on a workstation without committing the updated lockfile, the loose constraint in the manifest becomes the effective policy. Exact pinning in the manifest eliminates this residual risk regardless of how install commands are invoked.
 
@@ -181,3 +189,16 @@ The lockfile provides a partial mitigation — it pins exact resolved versions �
 - [Docker Scout](https://docs.docker.com/scout/)
 - [Sigstore Cosign](https://docs.sigstore.dev/cosign/overview/)
 - [GoogleContainerTools/distroless](https://github.com/GoogleContainerTools/distroless)
+- [Maven Documentation](https://maven.apache.org/guides/)
+- [Maven Enforcer Plugin — Built-in Rules](https://maven.apache.org/enforcer/enforcer-rules/index.html)
+- [Maven Dependency Management](https://maven.apache.org/guides/introduction/introduction-to-dependency-mechanism.html)
+- [maven-lockfile (chains-project)](https://github.com/chains-project/maven-lockfile)
+- [Gradle Documentation](https://docs.gradle.org/current/userguide/userguide.html)
+- [Gradle Dependency Locking](https://docs.gradle.org/current/userguide/dependency_locking.html)
+- [Gradle Dependency Verification](https://docs.gradle.org/current/userguide/dependency_verification.html)
+- [Gradle Version Catalogs](https://docs.gradle.org/current/userguide/platforms.html)
+- [Gradle Plugin Portal](https://plugins.gradle.org/)
+- [OWASP Dependency-Check](https://owasp.org/www-project-dependency-check/)
+- [CycloneDX Maven Plugin](https://github.com/CycloneDX/cyclonedx-maven-plugin)
+- [CycloneDX Gradle Plugin](https://github.com/CycloneDX/cyclonedx-gradle-plugin)
+- [Sonatype OSS Index](https://ossindex.sonatype.org/)
