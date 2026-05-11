@@ -122,7 +122,7 @@ updates:
 ### Harden-Runner
 
 ```yaml
-- uses: step-security/harden-runner@v2
+- uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2
   with:
     egress-policy: block
     disable-sudo: true

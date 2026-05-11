@@ -124,7 +124,7 @@ Dependabot does **not** manage Helm chart dependencies. It can manage container 
 Every GitHub Actions workflow that fetches Helm charts must include `step-security/harden-runner` as its first step. New workflows must not be added without it. Allowed endpoints must include the chart repositories and OCI registries the project depends on:
 
 ```yaml
-- uses: step-security/harden-runner@v2
+- uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2
   with:
     egress-policy: block
     disable-sudo: true

@@ -15,7 +15,7 @@ Start every new workflow in `audit` mode to observe what outbound connections ar
 ```yaml
 # .github/workflows/ci.yml
 steps:
-  - uses: step-security/harden-runner@v2
+  - uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2
     with:
       egress-policy: audit   # start here; switch to 'block' once allowlist is stable
       disable-sudo: true     # prevent privilege escalation on the runner
@@ -28,7 +28,7 @@ Once the egress policy is stable, switch to `block` and enumerate only the endpo
 **Node.js (npm / pnpm / yarn / bun):**
 
 ```yaml
-- uses: step-security/harden-runner@v2
+- uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2
   with:
     egress-policy: block
     disable-sudo: true
@@ -43,7 +43,7 @@ Once the egress policy is stable, switch to `block` and enumerate only the endpo
 **Python (pip / uv):**
 
 ```yaml
-- uses: step-security/harden-runner@v2
+- uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2
   with:
     egress-policy: block
     disable-sudo: true
@@ -58,7 +58,7 @@ Once the egress policy is stable, switch to `block` and enumerate only the endpo
 **Go:**
 
 ```yaml
-- uses: step-security/harden-runner@v2
+- uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2
   with:
     egress-policy: block
     disable-sudo: true
@@ -74,7 +74,7 @@ Once the egress policy is stable, switch to `block` and enumerate only the endpo
 **Cargo (Rust):**
 
 ```yaml
-- uses: step-security/harden-runner@v2
+- uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2
   with:
     egress-policy: block
     disable-sudo: true
