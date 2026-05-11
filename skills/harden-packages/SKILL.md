@@ -442,7 +442,7 @@ terraform providers lock \
 **Harden-Runner step (start in audit mode; switch to block after confirming allowlist):**
 
 ```yaml
-- uses: step-security/harden-runner@v2
+- uses: step-security/harden-runner@bb774aa972c2a89ff34781233d275075cbddf542 # v2
   with:
     egress-policy: audit
     disable-sudo: true
@@ -580,6 +580,6 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
 
 ### Harden-Runner
 
-- Is `step-security/harden-runner@v2` the first step in every job that installs dependencies?
+- Is `step-security/harden-runner` (SHA-pinned, e.g. `@bb774aa972c2a89ff34781233d275075cbddf542 # v2`) the first step in every job that installs dependencies? Flag any `@v2` / `@v3` / `@main` references — actions must be SHA-pinned to a 40-char commit, with a `# vX.Y.Z` trailing comment.
 - Is `egress-policy` set to `block` (not `audit`)? Is `disable-sudo: true` set?
 - Are job-level `uses:` entries (reusable workflows) SHA-pinned? These are mutable refs just like step-level `uses:` but **cannot receive harden-runner steps** — the entire job is delegated to the reusable workflow. Flag unpinned reusable workflow refs separately from the harden-runner audit.
