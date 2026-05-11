@@ -26,6 +26,8 @@ exclude = [
   "https://example.com",
   # claude.ai returns 403 for automated link checkers
   "https://claude.ai",
+  # medium.com returns 403 for automated link checkers
+  "https://medium.com",
 ]
 
 # Exclude paths from scanning

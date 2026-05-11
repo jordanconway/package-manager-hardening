@@ -108,6 +108,16 @@ def detect_ecosystems(root):
                 detected.append("terraform")
                 break
 
+    if (r / "pom.xml").exists():
+        detected.append("maven")
+    if (
+        (r / "build.gradle").exists()
+        or (r / "build.gradle.kts").exists()
+        or (r / "settings.gradle").exists()
+        or (r / "settings.gradle.kts").exists()
+    ):
+        detected.append("gradle")
+
     return detected
 
 
@@ -585,6 +595,205 @@ def audit_terraform(root):
 
 
 # ---------------------------------------------------------------------------
+# JVM audits — Maven and Gradle are detected and audited separately because
+# they have distinct Dependabot ecosystem keys and entirely different finding
+# shapes. The user-facing skill documentation refers to both under the "JVM"
+# umbrella.
+# ---------------------------------------------------------------------------
+
+
+def audit_maven(root):
+    r = Path(root)
+    findings = {}
+
+    pom = read(r / "pom.xml")
+    findings["pom_xml"] = {"present": bool(pom)}
+
+    # Detect loose / mutable version constraints in <version> elements
+    loose = []
+    for m in re.finditer(r"<version>([^<]+)</version>", pom):
+        ver = m.group(1).strip()
+        # Skip property placeholders (${...}) — they're resolved elsewhere
+        if ver.startswith("${"):
+            continue
+        bad = False
+        # Ranges
+        if ver.startswith("[") or ver.startswith("("):
+            bad = True
+        # Dynamic keywords
+        if ver in ("LATEST", "RELEASE"):
+            bad = True
+        # SNAPSHOTs (mutable)
+        if ver.endswith("-SNAPSHOT") or "SNAPSHOT" in ver:
+            bad = True
+        if bad:
+            loose.append(ver)
+    findings["exact_pins"] = {
+        "status": status(len(loose) == 0),
+        "loose": loose[:20],
+        "loose_count": len(loose),
+    }
+
+    # maven-enforcer-plugin with the canonical hardening rules
+    has_enforcer = "maven-enforcer-plugin" in pom
+    ban_dynamic = bool(re.search(r"<banDynamicVersions\s*/?>", pom))
+    require_plugin_versions = bool(re.search(r"<requirePluginVersions\b", pom))
+    require_release_deps = bool(re.search(r"<requireReleaseDeps\b", pom))
+    dependency_convergence = bool(re.search(r"<dependencyConvergence\s*/?>", pom))
+    rules_present = sum([ban_dynamic, require_plugin_versions, require_release_deps, dependency_convergence])
+    findings["enforcer_plugin"] = {
+        "present": has_enforcer,
+        "ban_dynamic_versions": ban_dynamic,
+        "require_plugin_versions": require_plugin_versions,
+        "require_release_deps": require_release_deps,
+        "dependency_convergence": dependency_convergence,
+        "status": status(has_enforcer and rules_present >= 2),
+    }
+
+    # Checksum policy — look for <checksumPolicy>fail</checksumPolicy> in pom or
+    # for --strict-checksums / -C in CI workflows.
+    wfs = workflow_files(root)
+    all_wf = "\n".join(wfs.values())
+    strict_in_pom = "fail" in re.findall(r"<checksumPolicy>([^<]+)</checksumPolicy>", pom)
+    strict_in_ci = grep(all_wf, r"--strict-checksums|\s-C\b")
+    findings["strict_checksums"] = {
+        "in_pom": strict_in_pom,
+        "in_ci": strict_in_ci,
+        "status": status(strict_in_pom or strict_in_ci),
+    }
+
+    # SCA scanner — at least one of OWASP Dependency-Check, CycloneDX, OSS Index
+    has_dependency_check = "dependency-check-maven" in pom
+    has_cyclonedx = "cyclonedx-maven-plugin" in pom
+    has_ossindex = "ossindex-maven-plugin" in pom
+    findings["sca_scanner"] = {
+        "owasp_dependency_check": has_dependency_check,
+        "cyclonedx": has_cyclonedx,
+        "ossindex": has_ossindex,
+        "status": status(has_dependency_check or has_cyclonedx or has_ossindex),
+    }
+
+    # CI invokes maven with --batch-mode (deterministic, fail-fast)
+    has_batch_mode = grep(all_wf, r"--batch-mode|\s-B\b")
+    findings["ci"] = {
+        "batch_mode": has_batch_mode,
+        "strict_checksums": strict_in_ci,
+        "status": status(has_batch_mode and (strict_in_pom or strict_in_ci)),
+    }
+
+    return findings
+
+
+def audit_gradle(root):
+    r = Path(root)
+    findings = {}
+
+    # Gather all build script content
+    build_files = []
+    for name in ("build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts"):
+        if (r / name).exists():
+            build_files.append(r / name)
+    build_files += [p for p in r.rglob("build.gradle") if p not in build_files]
+    build_files += [p for p in r.rglob("build.gradle.kts") if p not in build_files]
+    build_content = "\n".join(read(p) for p in build_files)
+
+    findings["build_files"] = [str(p.relative_to(r)) for p in build_files][:20]
+
+    # Detect dynamic versions in dependency strings
+    loose = []
+    # "group:name:1.+" / "group:name:latest.release" / "group:name:[1.0,2.0)"
+    for m in re.finditer(r'["\']([\w.\-]+):([\w.\-]+):([^"\']+)["\']', build_content):
+        ver = m.group(3)
+        if "+" in ver or "latest" in ver.lower() or ver.startswith("[") or ver.startswith("(") or "SNAPSHOT" in ver:
+            loose.append(f"{m.group(1)}:{m.group(2)}:{ver}")
+    findings["exact_pins"] = {
+        "status": status(len(loose) == 0),
+        "loose": loose[:20],
+        "loose_count": len(loose),
+    }
+
+    # Dependency locking
+    has_locking_block = grep(build_content, r"dependencyLocking\s*\{")
+    lock_all = grep(build_content, r"lockAllConfigurations\s*\(")
+    strict_mode = grep(build_content, r"LockMode\.STRICT|lockMode\.set\(\s*LockMode\.STRICT")
+    lockfiles = list(r.rglob("gradle.lockfile"))
+    findings["dependency_locking"] = {
+        "configured": has_locking_block,
+        "lock_all_configurations": lock_all,
+        "strict_mode": strict_mode,
+        "lockfile_count": len(lockfiles),
+        "status": status(has_locking_block and lock_all and bool(lockfiles)),
+    }
+
+    # Dependency verification (gradle/verification-metadata.xml)
+    vm = r / "gradle" / "verification-metadata.xml"
+    vm_content = read(vm)
+    verify_metadata = "verify-metadata>true" in vm_content
+    verify_signatures = "verify-signatures>true" in vm_content
+    findings["dependency_verification"] = {
+        "file_present": vm.exists(),
+        "verify_metadata": verify_metadata,
+        "verify_signatures": verify_signatures,
+        "status": status(vm.exists() and verify_metadata),
+    }
+
+    # Gradle Wrapper SHA pinning
+    wrapper_props = read(r / "gradle" / "wrapper" / "gradle-wrapper.properties")
+    has_sha = bool(re.search(r"^distributionSha256Sum\s*=", wrapper_props, re.MULTILINE))
+    findings["wrapper"] = {
+        "properties_present": bool(wrapper_props),
+        "distribution_sha256": has_sha,
+        "status": status(bool(wrapper_props) and has_sha),
+    }
+
+    # Repository control
+    fail_on_project_repos = grep(build_content, r"FAIL_ON_PROJECT_REPOS")
+    uses_maven_local = grep(build_content, r"mavenLocal\s*\(")
+    uses_jcenter = grep(build_content, r"jcenter\s*\(")
+    findings["repository_control"] = {
+        "fail_on_project_repos": fail_on_project_repos,
+        "uses_mavenLocal": uses_maven_local,
+        "uses_jcenter": uses_jcenter,
+        "status": status(fail_on_project_repos and not uses_maven_local and not uses_jcenter),
+    }
+
+    # Reproducible resolution (rejects dynamic/changing/mutable)
+    rejects_dynamic = grep(build_content, r"failOnNonReproducibleResolution|failOnDynamicVersions")
+    findings["reject_dynamic"] = {
+        "status": status(rejects_dynamic),
+        "configured": rejects_dynamic,
+    }
+
+    # SCA plugin
+    has_dependency_check = "org.owasp.dependencycheck" in build_content
+    has_cyclonedx = "org.cyclonedx.bom" in build_content
+    has_snyk = "io.snyk.gradle.plugin" in build_content
+    findings["sca_scanner"] = {
+        "owasp_dependency_check": has_dependency_check,
+        "cyclonedx": has_cyclonedx,
+        "snyk": has_snyk,
+        "status": status(has_dependency_check or has_cyclonedx or has_snyk),
+    }
+
+    # CI uses ./gradlew (not system gradle) and --no-daemon
+    wfs = workflow_files(root)
+    all_wf = "\n".join(wfs.values())
+    uses_wrapper = grep(all_wf, r"\./gradlew\b")
+    uses_no_daemon = grep(all_wf, r"--no-daemon")
+    # Flag if --write-locks or --write-verification-metadata appears in CI (must
+    # be local-only)
+    writes_locks_in_ci = grep(all_wf, r"--write-locks|--write-verification-metadata")
+    findings["ci"] = {
+        "uses_wrapper": uses_wrapper,
+        "no_daemon": uses_no_daemon,
+        "writes_locks_in_ci": writes_locks_in_ci,
+        "status": status(uses_wrapper and not writes_locks_in_ci),
+    }
+
+    return findings
+
+
+# ---------------------------------------------------------------------------
 # Dependabot audit
 # ---------------------------------------------------------------------------
 
@@ -596,6 +805,8 @@ ECOSYSTEM_KEYS = {
     "php": "composer",
     "ruby": "bundler",
     "terraform": "terraform",
+    "maven": "maven",
+    "gradle": "gradle",
 }
 
 
@@ -641,6 +852,11 @@ def audit_dependabot(root, detected_ecosystems):
                 eco_findings[eco]["known_bug"] = (
                     "Dependabot cooldown may not be respected for terraform providers (issue #13715)"
                 )
+            if eco == "gradle":
+                # Gradle Wrapper version is a separate Dependabot ecosystem;
+                # surface it as a sub-finding so the LLM can flag if missing.
+                wrapper_present = grep(content, r'package-ecosystem:\s*["\']?gradle-wrapper["\']?')
+                eco_findings[eco]["gradle_wrapper_ecosystem"] = "pass" if wrapper_present else "missing"
         else:
             eco_findings[eco] = {"status": "missing", "ecosystem_key": key}
 
@@ -727,6 +943,8 @@ def main():
         "php": audit_php,
         "ruby": audit_ruby,
         "terraform": audit_terraform,
+        "maven": audit_maven,
+        "gradle": audit_gradle,
     }
 
     for eco in detected:
