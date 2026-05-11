@@ -9,7 +9,8 @@ description: >
   review CI/CD pipeline security. Also trigger when the user says things like "harden
   my repo", "check my dependencies", "is my package config secure?", "set up supply
   chain security", "add Dependabot", or "are my packages safe?". Works across Node.js
-  (npm/pnpm/yarn/bun), Python (pip/uv), Go, Rust/Cargo, PHP/Composer, Ruby/Bundler, and Terraform/OpenTofu repos
+  (npm/pnpm/yarn/bun), Python (pip/uv), Go, Rust/Cargo, PHP/Composer, Ruby/Bundler,
+  JVM (Maven, Gradle — Java and Kotlin), and Terraform/OpenTofu repos
 ---
 
 <!--
@@ -46,7 +47,7 @@ section below.
 
 Read the JSON output. The top-level keys are:
 
-- `ecosystems_detected` — list of ecosystems found (nodejs, python, go, rust, php, ruby, terraform)
+- `ecosystems_detected` — list of ecosystems found (nodejs, python, go, rust, php, ruby, terraform, maven, gradle)
 - One key per ecosystem (e.g. `nodejs`, `python`) with nested findings
 - `dependabot` — per-ecosystem Dependabot configuration status
 - `harden_runner` — per-workflow Harden-Runner status
@@ -64,6 +65,18 @@ Each check has a `status` field: `"pass"`, `"warn"`, `"fail"`, or `"missing"`.
 - `harden_runner.workflows.<name>.egress_policy: audit` — runner is present but in audit mode, not block. Flag as ⚠️.
 - `harden_runner.workflows.<name>.harden_runner_present: false` — missing entirely. Flag as ❌.
 - `terraform.known_bug` — always flag: Dependabot cooldown for terraform providers has a known bug; exact pinning is the primary control.
+- `maven.exact_pins.loose` — pom.xml `<version>` entries that are ranges (`[1.2,2.0)`), `LATEST`, `RELEASE`, or `SNAPSHOT`. Every entry is a real finding. Property placeholders (`${...}`) are not flagged.
+- `maven.enforcer_plugin.status: fail` — `maven-enforcer-plugin` is missing or has fewer than two of the canonical hardening rules (`banDynamicVersions`, `requirePluginVersions`, `requireReleaseDeps`, `dependencyConvergence`). Maven has no native lockfile; the enforcer plugin is the substitute.
+- `maven.strict_checksums.status: fail` — neither `<checksumPolicy>fail</checksumPolicy>` nor `--strict-checksums` / `-C` on the CI invocation. Maven defaults to *warn*, not *fail*, on checksum mismatch.
+- `maven.sca_scanner.status: fail` — no OWASP Dependency-Check, CycloneDX, or OSS Index plugin configured.
+- `gradle.exact_pins.loose` — `build.gradle(.kts)` dependency strings with `+`, `latest.release`, ranges, or `SNAPSHOT`.
+- `gradle.dependency_locking.status: fail` — `dependencyLocking { lockAllConfigurations() }` missing, not in `LockMode.STRICT`, or no `gradle.lockfile` committed.
+- `gradle.dependency_verification.status: fail` — `gradle/verification-metadata.xml` missing or `verify-metadata` not set to true. This is the strongest artefact-integrity control on the JVM; recommend it whenever it's absent.
+- `gradle.wrapper.status: fail` — `gradle-wrapper.properties` missing `distributionSha256Sum=` line. The Gradle Wrapper download is otherwise unverified.
+- `gradle.repository_control` — flag any of: `FAIL_ON_PROJECT_REPOS` not set, `mavenLocal()` present (allows developer-local artefacts to substitute for Central), `jcenter()` present (unmaintained since 2024).
+- `gradle.reject_dynamic.status: fail` — neither `failOnNonReproducibleResolution()` nor `failOnDynamicVersions()` configured.
+- `gradle.ci.writes_locks_in_ci: true` — CI is running `--write-locks` or `--write-verification-metadata`. These are local-only operations; running them in CI defeats the controls. Always flag.
+- `dependabot.ecosystems.gradle.gradle_wrapper_ecosystem: missing` — sub-finding: the Gradle Wrapper has its own Dependabot ecosystem (`gradle-wrapper`) separate from `gradle`, and is missing.
 
 ## Step 3: Report findings
 
@@ -120,8 +133,10 @@ If the user agrees (fully or partially), apply the fixes in this order — lower
 4. `composer.json` — add `roave/security-advisories` dev dependency; tighten `^`/`~` pins to exact (flag for human review)
 5. Ruby CI — add `BUNDLE_FROZEN=true` and `bundle audit check` to CI workflow
 6. Terraform `*.tf` — tighten `~>` / `>=` constraints to `=` exact pins (**do not apply autonomously** — present proposed changes and require explicit human approval; changing constraints can cause `terraform init` to fail)
-7. `.github/dependabot.yml` — add missing ecosystem entries with cooldown blocks
-8. `.github/workflows/*.yml` — add or update harden-runner steps
+7. Maven `pom.xml` — add `maven-enforcer-plugin` with `banDynamicVersions` / `requirePluginVersions` / `requireReleaseDeps` / `dependencyConvergence`; set `<checksumPolicy>fail</checksumPolicy>` (**do not autonomously change `<version>` pins** — flag for human review, since tightening a transitive can break downstream consumers)
+8. Gradle `build.gradle(.kts)` / `settings.gradle(.kts)` — add `dependencyLocking { lockAllConfigurations(); lockMode.set(LockMode.STRICT) }`, `failOnNonReproducibleResolution()`, and `RepositoriesMode.FAIL_ON_PROJECT_REPOS`; remove `mavenLocal()` and `jcenter()` (**flag — repository changes can break local development**). Generating `gradle.lockfile` and `gradle/verification-metadata.xml` requires running `./gradlew --write-locks` and `./gradlew --write-verification-metadata sha256,pgp help` locally — do not run these in CI, and do not run them autonomously; instruct the user to run them and commit the result.
+9. `.github/dependabot.yml` — add missing ecosystem entries with cooldown blocks
+10. `.github/workflows/*.yml` — add or update harden-runner steps
 
 For each file you modify, show a clear before/after diff and explain what changed and why.
 
@@ -250,6 +265,136 @@ bundle exec bundle-audit check --update
       index.rubygems.org:443
 ```
 
+**Maven enforcer plugin (add to `<build><plugins>` in pom.xml):**
+
+```xml
+<plugin>
+  <groupId>org.apache.maven.plugins</groupId>
+  <artifactId>maven-enforcer-plugin</artifactId>
+  <version>3.5.0</version>
+  <executions>
+    <execution>
+      <id>enforce</id>
+      <goals><goal>enforce</goal></goals>
+      <configuration>
+        <rules>
+          <banDynamicVersions/>
+          <requirePluginVersions>
+            <banLatest>true</banLatest>
+            <banRelease>true</banRelease>
+            <banSnapshots>true</banSnapshots>
+          </requirePluginVersions>
+          <requireReleaseDeps/>
+          <dependencyConvergence/>
+        </rules>
+      </configuration>
+    </execution>
+  </executions>
+</plugin>
+```
+
+**Maven strict checksums (settings.xml repository entry):**
+
+```xml
+<releases>
+  <enabled>true</enabled>
+  <checksumPolicy>fail</checksumPolicy>
+</releases>
+```
+
+**Maven CI invocation:**
+
+```bash
+mvn --batch-mode --strict-checksums --fail-fast verify
+mvn --batch-mode org.owasp:dependency-check-maven:check
+```
+
+**Dependabot maven ecosystem entry:**
+
+```yaml
+  - package-ecosystem: "maven"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+```
+
+**Gradle hardening block (root build.gradle.kts):**
+
+```kotlin
+allprojects {
+    configurations.all {
+        resolutionStrategy {
+            failOnNonReproducibleResolution()
+        }
+    }
+    dependencyLocking {
+        lockAllConfigurations()
+        lockMode.set(LockMode.STRICT)
+    }
+}
+```
+
+**Gradle repository control (settings.gradle.kts):**
+
+```kotlin
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+```
+
+**Gradle generate lockfile and verification metadata (run locally, commit the result — never in CI):**
+
+```bash
+./gradlew dependencies --write-locks
+./gradlew --write-verification-metadata sha256,pgp --export-keys help
+```
+
+**Gradle CI invocation:**
+
+```bash
+./gradlew --no-daemon --console=plain --stacktrace build
+./gradlew --no-daemon dependencyCheckAnalyze
+```
+
+**Dependabot gradle + gradle-wrapper ecosystem entries:**
+
+```yaml
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+  - package-ecosystem: "gradle-wrapper"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+```
+
+**Harden-Runner endpoints for Maven and Gradle:**
+
+```yaml
+      repo.maven.apache.org:443
+      repo1.maven.org:443
+      plugins.gradle.org:443
+      services.gradle.org:443
+      downloads.gradle.org:443
+```
+
+Add `nvd.nist.gov:443 services.nvd.nist.gov:443` if OWASP Dependency-Check runs in CI. Add `dl.google.com:443` for Android/Kotlin projects. Add private registry hostnames (Nexus, Artifactory, GitHub Packages) if used.
+
 **Terraform required_providers exact pinning:**
 
 ```hcl
@@ -315,6 +460,7 @@ Append the ecosystem-specific endpoints:
 - Rust: `crates.io:443 index.crates.io:443 static.crates.io:443`
 - PHP: `packagist.org:443 repo.packagist.org:443`
 - Ruby: `rubygems.org:443 api.rubygems.org:443 index.rubygems.org:443` (add `raw.githubusercontent.com:443` if `bundle audit update` runs in CI)
+- Maven / Gradle: `repo.maven.apache.org:443 repo1.maven.org:443 plugins.gradle.org:443 services.gradle.org:443 downloads.gradle.org:443` (add `nvd.nist.gov:443 services.nvd.nist.gov:443` if OWASP Dependency-Check runs; `dl.google.com:443` for Android/Kotlin)
 - Terraform: `registry.terraform.io:443 releases.hashicorp.com:443 checkpoint-api.hashicorp.com:443`
 - OpenTofu: `registry.opentofu.org:443` (provider binary CDN endpoints vary by provider — discover via `audit` mode first)
 
@@ -388,6 +534,36 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
 - Is `BUNDLE_FROZEN=true` set in CI?
 - Does CI run `bundle audit check`?
 - Is a `ruby` directive in `Gemfile` or a `.ruby-version` file committed?
+
+### JVM (Maven / Gradle — Java / Kotlin)
+
+**Maven (`pom.xml` present):**
+
+- Do all `<version>` entries use exact, immutable values? Flag any range (`[1.2,2.0)`, `(1.2,)`), `LATEST`, `RELEASE`, or `SNAPSHOT`.
+- Is every plugin pinned in `<build><pluginManagement>` with an explicit `<version>`?
+- Is `maven-enforcer-plugin` configured with at least two of: `banDynamicVersions`, `requirePluginVersions`, `requireReleaseDeps`, `dependencyConvergence`?
+- Is the checksum policy `fail` — either via `<checksumPolicy>fail</checksumPolicy>` in a repository definition or via `--strict-checksums` / `-C` on every CI Maven invocation?
+- Is at least one SCA scanner (`dependency-check-maven`, `cyclonedx-maven-plugin`, or `ossindex-maven-plugin`) wired into the build?
+- Does CI pass `--batch-mode` and `--fail-fast`?
+- Is `.mvn/extensions.xml` reviewed? Extensions load before any POM is parsed and run JVM code on the build host.
+
+**Gradle (`build.gradle` or `build.gradle.kts` present):**
+
+- Are all dependency coordinates exact? Flag any `+`, `latest.release`, range (`[1.0,2.0)`), or `SNAPSHOT`.
+- Is `dependencyLocking { lockAllConfigurations(); lockMode.set(LockMode.STRICT) }` configured at the root and is `gradle.lockfile` committed for every project module?
+- Is `gradle/verification-metadata.xml` committed, with `<verify-metadata>true</verify-metadata>` and ideally `<verify-signatures>true</verify-signatures>`?
+- Does `gradle/wrapper/gradle-wrapper.properties` include a `distributionSha256Sum=` line?
+- In `settings.gradle(.kts)`, is `repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)` set?
+- Is `mavenLocal()` or `jcenter()` referenced anywhere? Both are red flags.
+- Is `failOnNonReproducibleResolution()` (or `failOnDynamicVersions()` + `failOnChangingVersions()`) configured on every configuration?
+- Does CI invoke `./gradlew` (not a system `gradle`) and pass `--no-daemon`?
+- Does CI ever run `--write-locks` or `--write-verification-metadata`? If so, that defeats the controls and must be removed.
+- Is at least one SCA plugin (`org.owasp.dependencycheck`, `org.cyclonedx.bom`, or Snyk) configured?
+
+**Dependabot ecosystems for JVM projects:**
+
+- Maven: `package-ecosystem: "maven"` with cooldown.
+- Gradle: `package-ecosystem: "gradle"` with cooldown, **plus** `package-ecosystem: "gradle-wrapper"` (a separate ecosystem that updates the Wrapper version itself).
 
 ### Terraform / OpenTofu
 
