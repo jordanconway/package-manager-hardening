@@ -8,6 +8,40 @@ SPDX-License-Identifier: MIT
 
 This file contains mandatory guidelines for working with GitHub Actions workflows in this repository. Follow these rules whenever adding, modifying, or reviewing files under `.github/workflows/`.
 
+## Checkout: disable credential persistence
+
+Every `actions/checkout` invocation must set `persist-credentials: false` unless the job genuinely needs to push back to the repo (release tagging, automated commits). The default leaves `GITHUB_TOKEN` in `.git/config` for the rest of the job, where any subsequent step — including a compromised dependency build — can use it.
+
+```yaml
+- uses: actions/checkout@<sha> # v4
+  with:
+    persist-credentials: false
+```
+
+If a job needs to push, override only in that job and document why in a YAML comment.
+
+## Workflow concurrency
+
+Every workflow must declare a top-level `concurrency:` block. For CI workflows (lint/test/build), cancel superseded runs:
+
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+```
+
+For release / deploy workflows where in-flight runs should complete, keep the `group:` but set `cancel-in-progress: false`.
+
+## Static analysis: zizmor
+
+Every repository must run [`zizmor`](https://docs.zizmor.sh) against `.github/workflows/` in CI as a required status check. zizmor catches the controls in this file plus many others (template injection, mutable reusable-workflow refs, dangerous triggers, secrets exposed to forks, etc.) and is the canonical static analyser for this domain.
+
+Minimum gate: `--min-severity=medium` on the default persona. Stricter gate (preferred for security-sensitive repos): `--persona=auditor --min-severity=low`.
+
+New or modified workflows must pass `uvx zizmor --persona=auditor .` locally before being committed. New zizmor findings must not be merged — either fix the underlying issue or, if it is a confirmed false positive, suppress it explicitly with a `# zizmor: ignore[<rule>]` comment plus a justification in the PR description.
+
+Do not downgrade the `--min-severity` threshold or remove the zizmor job from CI without explicit human approval.
+
 ## Action Version Pinning
 
 **Always pin actions to their full commit SHA**, not to a version tag. Include the human-readable tag as a comment on the same line:
@@ -121,3 +155,6 @@ The following changes must not be made autonomously and require explicit human a
 - Adding `pull_request_target` triggers
 - Granting any permission beyond `contents: read` at the workflow level
 - Modifying the Dependabot configuration for the `github-actions` ecosystem
+- Setting `persist-credentials: true` (or omitting it, which defaults to `true`) on `actions/checkout`
+- Removing or weakening the workflow-level `concurrency:` block
+- Removing the zizmor job, lowering its `--min-severity`, or suppressing a finding without a documented justification
