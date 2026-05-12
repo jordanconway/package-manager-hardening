@@ -273,6 +273,17 @@ It's PR-only, free, and requires no infrastructure. It also writes a summary com
 
 Make the job a required status check on `main` so it cannot be merged around. Tune `fail-on-severity` (`critical | high | moderate | low`) to your project's risk tolerance.
 
+**Endpoint requirements**: `dependency-review-action` **v4.9.0+** queries `api.deps.dev` and `api.securityscorecards.dev` for vulnerability and Scorecard data, in addition to the standard `api.github.com` / `github.com` / `objects.githubusercontent.com`. v4.8.x did not need these. A Dependabot bump from 4.8.x → 4.9.x will fail in `block` mode with `fetch failed` until the two new endpoints are added to the allowlist:
+
+```yaml
+allowed-endpoints: >
+  api.github.com:443
+  github.com:443
+  objects.githubusercontent.com:443
+  api.deps.dev:443
+  api.securityscorecards.dev:443
+```
+
 **Prerequisite**: `dependency-review-action` requires Dependabot security updates to be enabled on the repo (not just the always-on dependency graph). Without it, every run fails with `Dependency review is not supported on this repository. Please ensure that Dependency graph is enabled`. Enable via Settings → Code security → "Dependabot security updates", or:
 
 ```bash
@@ -348,6 +359,90 @@ Minimum `SECURITY.md` content:
 - Scope (what is and isn't covered)
 
 Without this, researchers either file public issues (worst case) or never report at all.
+
+## Static analysis with CodeQL (SAST)
+
+[CodeQL](https://docs.github.com/en/code-security/code-scanning) is GitHub's semantic SAST engine. It catches the bugs that line-level linters can't — SQL injection, path traversal, deserialisation flaws, hard-coded credentials, unsafe deserialisation, command injection. Free for public repos; included with GitHub Advanced Security for private. Findings appear in the Security tab and (for PRs) inline in the diff.
+
+Also satisfies OpenSSF Scorecard's `SAST` check, which scores 0 if no SAST tool runs on commits.
+
+Add it as a separate workflow file. Use the `python` and `actions` languages (the latter scans the workflows themselves):
+
+```yaml
+# .github/workflows/codeql.yml
+name: CodeQL
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "23 6 * * 1"
+permissions: {}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  analyze:
+    runs-on: ubuntu-24.04
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, actions]
+    steps:
+      - uses: step-security/harden-runner@<sha> # v2
+        with:
+          egress-policy: audit  # CodeQL fetches query packs; block is impractical
+          disable-sudo: true
+      - uses: actions/checkout@<sha> # v4
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@<sha> # v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended  # higher coverage for security-focused repos
+          build-mode: none            # Python/Actions: no compilation needed
+      - uses: github/codeql-action/analyze@<sha> # v3
+        with:
+          category: "/language:${{ matrix.language }}"
+```
+
+Use `queries: security-extended` for security-focused repos; the default `security-and-quality` adds noisier code-quality findings on top. Keep `egress-policy: audit` — CodeQL legitimately fetches query packs from `objects.githubusercontent.com` and posts results back to the API, and a fixed allowlist is impractical to maintain.
+
+Languages worth enabling beyond your application code:
+
+- **`actions`** — catches workflow vulnerabilities (template injection, mutable refs) that complement zizmor
+- **`javascript-typescript`** — even for backend repos, scans any frontend / build scripts
+- **`go` / `java-kotlin` / `csharp` / `cpp` / `swift` / `ruby` / `rust`** — each language has dedicated query packs
+
+## Fuzzing
+
+OpenSSF Scorecard's `Fuzzing` check scores 0 if it finds no fuzzer integration. For most repos, the lowest-friction satisfying pattern is:
+
+- **Python**: Hypothesis property-based tests in `tests/`. Scorecard recognises `import hypothesis` as fuzzing.
+- **Go**: built-in `go test -fuzz` tests (`func FuzzXxx(f *testing.F)`).
+- **Rust**: `cargo-fuzz` targets in `fuzz/`.
+- **C / C++ / anything else**: ClusterFuzzLite or OSS-Fuzz integration.
+
+Property-based tests are not full fuzzing campaigns, but they catch the same class of bugs (regex catastrophic backtracking, parser crashes on adversarial inputs, encoding edge cases) and integrate cleanly into the existing test job. Example for a Python repo with parser-style code:
+
+```python
+# tests/test_fuzz.py
+from hypothesis import given, settings, strategies as st
+
+@given(content=st.text(max_size=4096))
+@settings(max_examples=200, deadline=500)
+def test_parser_never_raises(content):
+    # Property: parser must not raise on arbitrary input
+    result = my_module.parse(content)
+    assert result is None or isinstance(result, dict)
+```
+
+Add `hypothesis==<version>` to your dev dependency group so it's hash-verified via the lockfile.
 
 ## Static analysis with zizmor
 
@@ -427,7 +522,9 @@ Dependabot understands SHA-pinned actions and will propose updates with both the
 | Block vulnerable PR deps | `actions/dependency-review-action` as required check on PRs |
 | External posture scoring | `ossf/scorecard-action` weekly + on push to main, with badge |
 | Vulnerability disclosure | `SECURITY.md` + GitHub private vulnerability reporting enabled |
-| Static analysis | `zizmor` job in CI; SHA-pinned, `--min-severity=medium` |
+| Static analysis (workflows) | `zizmor` job in CI; SHA-pinned, `--min-severity=medium` |
+| Static analysis (code) | `CodeQL` workflow; `security-extended` queries; `audit` egress |
+| Fuzzing | Hypothesis (Python) / `go test -fuzz` (Go) / `cargo-fuzz` (Rust) / OSS-Fuzz (C/C++) |
 | Avoid `pull_request_target` | Use `pull_request` unless write access is explicitly needed |
 | Prevent expression injection | Pass untrusted values via `env:`, not `${{ }}` in `run:` |
 | OIDC for cloud auth | `id-token: write` + federated identity; no long-lived keys |

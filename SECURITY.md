@@ -46,3 +46,27 @@ Out of scope:
 
 - Vulnerabilities in third-party tools the docs reference (Dependabot, Harden-Runner, zizmor, uv, etc.) — please report those directly to the upstream projects
 - Issues in user repositories that adopt these recommendations
+
+## Security posture
+
+This repository's posture is publicly visible:
+
+- **OpenSSF Scorecard** — see the badge in [README.md](README.md). Score is updated weekly and on every push to `main` via [`.github/workflows/scorecard.yml`](.github/workflows/scorecard.yml).
+- **CodeQL** — SAST runs on every push, every PR to `main`, and weekly. Findings appear in the Security tab.
+- **Dependency review** — every PR is gated on `actions/dependency-review-action` (`fail-on-severity: high`, GPL/AGPL denylist).
+- **zizmor** — every push and PR is gated on workflow static analysis at `--min-severity=medium`.
+- **Harden-Runner** — every CI job runs under runtime egress control (`block` mode with explicit allowlists, or `audit` mode where `block` is impractical).
+- **Secret scanning + push protection** — enabled on the repo.
+- **Private vulnerability reporting** — enabled (this is what the link above uses).
+- **Property-based fuzzing** — [`tests/test_fuzz.py`](tests/test_fuzz.py) uses Hypothesis to fuzz the audit-script parsers against adversarial inputs.
+
+## Known Scorecard trade-offs
+
+Two Scorecard checks are deliberately not satisfied for this repository, and the corresponding code-scanning alerts are dismissed as `won't fix`:
+
+- **Code-Review** — Scorecard expects every changeset to be approved by a different person than the author. This repository follows a deliberate single-maintainer policy: the owner merges their own PRs and may push directly to `main`. Branch protection enforces required status checks, linear history, conversation resolution, and no force-push, but does **not** require a separate reviewer (`enforce_admins: false`, no `required_pull_request_reviews`). Contributors should expect their own PRs to land via the same flow once they have write access. If you would prefer multi-maintainer review for higher-risk changes, open an issue.
+- **Maintained** — Scorecard penalises repositories younger than 90 days. This will resolve with time and is not actionable.
+
+## OpenSSF Best Practices Badge
+
+A self-certification at <https://www.bestpractices.dev/> is on the roadmap. Once awarded, the badge will appear next to the Scorecard badge in [README.md](README.md). Until then, Scorecard's `CII-Best-Practices` check will report 0; this is a known gap rather than a missing control.
