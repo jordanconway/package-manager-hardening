@@ -45,16 +45,18 @@ jobs:
             objects.githubusercontent.com:443
             pypi.org:443
             files.pythonhosted.org:443
+            astral.sh:443
+            release-assets.githubusercontent.com:443
 
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
-          python-version: "3.12"
+          version: "0.11.11"
 
-      - run: pip install ruff==0.11.2
-      - run: ruff check skills/harden-packages/audit.py
-      - run: ruff format --check skills/harden-packages/audit.py
+      - run: uv sync --frozen --group dev --python 3.12
+      - run: uv run ruff check skills/harden-packages/audit.py
+      - run: uv run ruff format --check skills/harden-packages/audit.py
 
   python-test:
     name: Python tests (py${{ matrix.python-version }})
@@ -73,15 +75,17 @@ jobs:
             objects.githubusercontent.com:443
             pypi.org:443
             files.pythonhosted.org:443
+            astral.sh:443
+            release-assets.githubusercontent.com:443
 
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
-          python-version: ${{ matrix.python-version }}
+          version: "0.11.11"
 
-      - run: pip install pytest==8.3.5
-      - run: pytest tests/ -v
+      - run: uv sync --frozen --group dev --python ${{ matrix.python-version }}
+      - run: uv run pytest tests/ -v
 
   markdown-lint:
     name: Markdown lint

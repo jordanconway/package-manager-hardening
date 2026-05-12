@@ -1,0 +1,62 @@
+# SPDX-FileCopyrightText: 2026 The Linux Foundation
+# SPDX-License-Identifier: MIT
+
+version: 2
+updates:
+  # GitHub Actions used by workflows in .github/workflows/
+  # All actions in this repo are SHA-pinned with `# vX.Y.Z` comments;
+  # Dependabot will bump both the SHA and the trailing version comment.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    groups:
+      # Batch routine action bumps into one PR to reduce review churn,
+      # while keeping major bumps separate so they get explicit review.
+      actions-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    # GitHub Actions tags (v4, v4.1.2) aren't always parsed as SemVer
+    # by Dependabot, so the semver-*-days keys don't reliably apply.
+    # default-days always applies and gives a 7-day soak after release —
+    # enough time for the community to catch a compromised tag/SHA.
+    cooldown:
+      default-days: 7
+
+  # Python dev tooling (ruff, pytest) declared in pyproject.toml
+  # [dependency-groups].dev and locked in uv.lock.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "python"
+    groups:
+      python-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
