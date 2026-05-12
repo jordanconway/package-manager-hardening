@@ -115,6 +115,16 @@ SPDX-License-Identifier: MIT
 
 For files without comment syntax (JSON, lockfiles, binary), add an entry to [`REUSE.toml`](REUSE.toml).
 
+### Releases and changelog
+
+User-visible changes go in [`CHANGELOG.md`](CHANGELOG.md) under the `[Unreleased]` section as part of the same PR. The changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows [Semantic Versioning](https://semver.org/):
+
+- **MAJOR** when a recommendation is removed, the `audit.py` JSON schema changes incompatibly, or guidance reverses direction.
+- **MINOR** when new ecosystems, controls, or audit fields are added in a backward-compatible way.
+- **PATCH** for documentation fixes, typo corrections, link repairs, and bug fixes that don't change recommended behaviour.
+
+Releases are cut by the maintainer via `git tag vX.Y.Z` + a corresponding GitHub Release whose body links to the relevant `CHANGELOG.md` section.
+
 ## Code of conduct
 
 Be respectful, be specific, assume good faith. Personal attacks, harassment, or discriminatory language will result in the issue / PR being closed without further engagement.
