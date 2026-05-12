@@ -102,9 +102,9 @@ Example report structure:
 ⚠️ onlyBuiltDependencies not configured — all installed packages can run postinstall scripts
 
 ### Python (uv)
-✅ uv.lock committed
+✅ uv.lock committed (hash verification is automatic with `uv sync --frozen`)
 ✅ exclude-newer = "7 days"
-❌ require-hashes not set — packages are not hash-verified on install
+❌ [tool.uv.pip] require-hashes not set — ad-hoc `uv pip install` calls won't enforce hashes
 
 ### Dependabot
 ✅ npm cooldown configured (7/30/7/3 days)
@@ -117,7 +117,7 @@ Example report structure:
 ### Priority fixes
 1. Add harden-runner to release.yml — release workflows are high-value targets
 2. Set egress-policy: block in ci.yml once allowlist is confirmed
-3. Add require-hashes = true to [tool.uv]
+3. Add require-hashes = true under [tool.uv.pip] (defensive, for ad-hoc `uv pip install`)
 4. Add pip entry to dependabot.yml
 5. Set trustPolicy: no-downgrade in pnpm-workspace.yaml
 ```
@@ -129,7 +129,7 @@ After the report, ask: "Would you like me to apply the fixes? I can handle all o
 If the user agrees (fully or partially), apply the fixes in this order — lower risk / non-breaking changes first:
 
 1. `pnpm-workspace.yaml` / `.npmrc` / `.yarnrc.yml` / `bunfig.toml` — add missing cooldown / trust policy config
-2. `pyproject.toml [tool.uv]` — add `exclude-newer`, `require-hashes`, `verify-hashes`
+2. `pyproject.toml` — add `[tool.uv] exclude-newer = "7 days"` and `[tool.uv.pip] require-hashes = true / verify-hashes = true`. (Hash verification of artefacts resolved against `uv.lock` is automatic via `uv sync --frozen` — these `[tool.uv.pip]` flags only protect ad-hoc `uv pip install` invocations.)
 3. `.cargo/config.toml` — add `[cooldown]` block
 4. `composer.json` — add `roave/security-advisories` dev dependency; tighten `^`/`~` pins to exact (flag for human review)
 5. Ruby CI — add `BUNDLE_FROZEN=true` and `bundle audit check` to CI workflow
@@ -179,10 +179,29 @@ lifecycleScripts = false
 
 ```toml
 [tool.uv]
+# Rolling 7-day cooldown — re-evaluated on every `uv lock`.
+# Supported since uv 0.9.17 (Dec 2025).
 exclude-newer = "7 days"
+
+[tool.uv.pip]
+# Defensive: enforce hashes for ad-hoc `uv pip install` calls.
+# `uv sync --frozen` already enforces lockfile hashes automatically;
+# these flags only affect the pip-compat surface.
 require-hashes = true
 verify-hashes = true
 ```
+
+**Note on dev tooling:** declare ruff/pytest/etc. as a PEP 735 dependency group, not as inline `pip install` lines in CI — Dependabot (`package-ecosystem: "uv"`) cannot update what isn't in a manifest:
+
+```toml
+[dependency-groups]
+dev = [
+  "ruff==0.11.2",
+  "pytest==8.3.5",
+]
+```
+
+Then install in CI with `uv sync --frozen --group dev` and run via `uv run <tool>`.
 
 **Cargo .cargo/config.toml additions:**
 
@@ -467,7 +486,7 @@ terraform providers lock \
 Append the ecosystem-specific endpoints:
 
 - Node.js: `registry.npmjs.org:443` (add `npm.pkg.github.com:443` if GitHub Packages used)
-- Python: `pypi.org:443 files.pythonhosted.org:443`
+- Python: `pypi.org:443 files.pythonhosted.org:443` (add `astral.sh:443 release-assets.githubusercontent.com:443 raw.githubusercontent.com:443` if `astral-sh/setup-uv` is used — it downloads the uv binary from GitHub releases (which redirect to `release-assets.githubusercontent.com`, **not** the older `github-production-release-asset-2e65be.s3.amazonaws.com`), and on **v8+** also fetches its version manifest from `raw.githubusercontent.com/astral-sh/versions`. v6.x baked the manifest into the action and did not need `raw.githubusercontent.com`.)
 - Go: `proxy.golang.org:443 sum.golang.org:443 storage.googleapis.com:443`
 - Rust: `crates.io:443 index.crates.io:443 static.crates.io:443`
 - PHP: `packagist.org:443 repo.packagist.org:443`
@@ -506,7 +525,7 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
 
 ### Python (pip / uv)
 
-- uv: is `uv.lock` present and not gitignored? Are `exclude-newer`, `require-hashes`, `verify-hashes` set in `[tool.uv]`?
+- uv: is `uv.lock` present and **not gitignored**? Is `exclude-newer` set in `[tool.uv]` (rolling duration like `"7 days"` preferred over a frozen timestamp)? Are `require-hashes` and `verify-hashes` set in `[tool.uv.pip]` (note: this is `[tool.uv.pip]`, not `[tool.uv]` — uv rejects them at the top level)? Hash verification against `uv.lock` is automatic via `uv sync --frozen` regardless. Are dev tools (ruff/pytest/etc.) declared in `[dependency-groups]` so Dependabot can update them, rather than inline `pip install x==y` in CI?
 - pip: is there a `requirements.lock` with hashes (from `pip-compile --generate-hashes`)?
 - Are all package specs using `==` (not `>=`, `~=`, or unpinned)?
 - uv: does CI use `uv sync --frozen`? pip: `pip install --require-hashes`?

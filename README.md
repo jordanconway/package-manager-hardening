@@ -123,7 +123,7 @@ The lockfile provides a partial mitigation — it pins exact resolved versions �
 | [Yarn Classic](docs/nodejs.md#yarn-classic) / [Berry](docs/nodejs.md#yarn-berry) | `^` (minor+patch) | `^1.0.0` `~1.0.0` `>=1.0.0` | `1.0.0` | ✅ Yes — `--immutable` | `defaultSemverRangePrefix: ""` in `.yarnrc.yml` |
 | [Bun](docs/nodejs.md#bun) | `^` (minor+patch) | `^1.0.0` `~1.0.0` `>=1.0.0` | `1.0.0` | ✅ Yes — `--frozen-lockfile` | `exact = true` in `bunfig.toml` |
 | [pip](docs/python.md#pip) | None (user-specified) | `>=1.0.0` `~=1.0.0` `!=1.0.0` | `==1.0.0` | ❌ No native lockfile | `pip-compile --generate-hashes`; always use `==` |
-| [uv](docs/python.md#uv) | None (user-specified) | `>=1.0.0` `~=1.0.0` | `==1.0.0` | ✅ Yes — `uv sync --frozen` | `require-hashes = true` in `[tool.uv]` |
+| [uv](docs/python.md#uv) | None (user-specified) | `>=1.0.0` `~=1.0.0` | `==1.0.0` | ✅ Yes — `uv sync --frozen` (auto-verifies hashes from `uv.lock`) | `require-hashes = true` in `[tool.uv.pip]` (defensive, for ad-hoc `uv pip install`) |
 | [Go modules](docs/go.md#go-modules) | MVS minimum¹ | `@latest` `@master` | `@v1.9.1` | ✅ Yes — `go.sum` hashes | Never use `@latest`; always specify a tagged version |
 | [Cargo](docs/rust.md#cargo-rust) | `^` (caret, implicit) | `1.0.0` `^1.0.0` `~1.0.0` `>=1.0.0` | `=1.0.0` | ✅ Yes — `--locked` | Use `=` prefix explicitly in `Cargo.toml` |
 | [Composer](docs/php.md#composer) | `^` (caret) | `^1.2.3` `~1.2.3` `>=1.0` `1.2.*` | `1.2.3` | ✅ Yes — `composer install` enforces it | Use bare version strings in `composer.json` |

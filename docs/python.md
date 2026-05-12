@@ -126,15 +126,17 @@ dependencies = [
 ]
 ```
 
-For development dependencies:
+For development dependencies, prefer PEP 735 dependency groups (supported by uv since 0.5.x) over the older uv-specific `[tool.uv].dev-dependencies` form:
 
 ```toml
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
   "pytest==8.1.0",
   "ruff==0.4.0",
 ]
 ```
+
+Install with `uv sync --group dev` (or `--all-groups`). Dependabot's `uv` ecosystem reads `[dependency-groups]` and will open update PRs for entries declared there — inline `pip install x==y` lines in workflow files are invisible to Dependabot.
 
 ### Registry / Index Configuration
 
@@ -203,11 +205,15 @@ exclude-newer = "0 days"   # bypass cooldown for this package
 
 ### Security: Hash Verification
 
+When installing from `uv.lock` via `uv sync --frozen`, hash verification is **automatic and unconditional** — every wheel/sdist resolved from the lockfile is checked against the sha256 recorded at lock time. No additional flag is required, and the lockfile must be committed for this to work.
+
+The `require-hashes` / `verify-hashes` knobs live under `[tool.uv.pip]` (not `[tool.uv]` — uv rejects them at the top level) and only apply to ad-hoc `uv pip install` invocations that bypass the project workflow:
+
 ```toml
 # pyproject.toml
-[tool.uv]
-require-hashes = true        # all dependencies must have hash entries in lockfile
-verify-hashes = true         # verify hashes at install time (default: true)
+[tool.uv.pip]
+require-hashes = true        # uv pip install: every dep must carry a hash
+verify-hashes = true         # uv pip install: verify hashes at install time
 ```
 
 ### Security: Disabling Build Scripts
@@ -238,8 +244,43 @@ uv run --package myapi pytest  # run in specific workspace member
 # pyproject.toml
 [tool.uv]
 exclude-newer = "7 days"
+
+[tool.uv.pip]
 require-hashes = true
+verify-hashes = true
 ```
+
+In the workflow, install uv via the official action (SHA-pinned with the dereferenced annotated-tag commit, plus a `version:` pin so the runtime matches local development):
+
+```yaml
+- uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+  with:
+    version: "0.11.11"
+
+- run: uv sync --frozen --group dev --python 3.12
+- run: uv run pytest
+```
+
+Harden-Runner allowlist must include the uv binary download path:
+
+```yaml
+allowed-endpoints: >
+  api.github.com:443
+  github.com:443
+  objects.githubusercontent.com:443
+  pypi.org:443
+  files.pythonhosted.org:443
+  astral.sh:443
+  release-assets.githubusercontent.com:443
+  raw.githubusercontent.com:443
+```
+
+Notes:
+
+- GitHub release downloads now redirect through `release-assets.githubusercontent.com`. Older guides that list `github-production-release-asset-2e65be.s3.amazonaws.com` are out of date.
+- `raw.githubusercontent.com` is needed by `astral-sh/setup-uv` **v8+** only: v8 fetches its version manifest from `https://raw.githubusercontent.com/astral-sh/versions/main/v1/uv.ndjson`. v6.x baked the manifest into the action; workflows upgrading from v6 to v8 will fail until this endpoint is added.
+
+Audit dependencies separately:
 
 ```bash
 uv sync --frozen

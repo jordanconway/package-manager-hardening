@@ -29,6 +29,20 @@ updates:
     cooldown:
       default-days: 7
 
+  # uv reads pyproject.toml [project.dependencies] and [dependency-groups].
+  # Inline `pip install x==y` lines in workflow files are NOT updated by
+  # any ecosystem — move dev tooling into a [dependency-groups] entry to
+  # make it visible to Dependabot.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:

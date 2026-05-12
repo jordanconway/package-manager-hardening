@@ -123,7 +123,16 @@ Start in `audit` mode for new workflows, then tighten to `block` once the egress
       objects.githubusercontent.com:443
       pypi.org:443
       files.pythonhosted.org:443
+      astral.sh:443
+      release-assets.githubusercontent.com:443
+      raw.githubusercontent.com:443
 ```
+
+The last three endpoints are required only when `astral-sh/setup-uv` runs:
+
+- `astral.sh` — managed Python downloads.
+- `release-assets.githubusercontent.com` — modern GitHub release-asset CDN (the uv binary). The older `github-production-release-asset-2e65be.s3.amazonaws.com` is deprecated and will fail with `ECONNREFUSED` in `block` mode.
+- `raw.githubusercontent.com` — **v8+ only**. `setup-uv` v8 fetches its version manifest from `https://raw.githubusercontent.com/astral-sh/versions/main/v1/uv.ndjson`; v6.x did not need this endpoint, so a Dependabot bump from v6 → v8 will fail until it is added.
 
 ## What Requires Human Review
 
@@ -132,6 +141,6 @@ The following changes must not be made autonomously and require explicit human a
 - Adding a new dependency with no prior entry in the lockfile
 - Upgrading a major version
 - Disabling or removing `exclude-newer` from `[tool.uv]`
-- Removing `require-hashes` or `verify-hashes`
+- Removing `require-hashes` or `verify-hashes` from `[tool.uv.pip]`
 - Modifying `.github/dependabot.yml` cooldown values downward
 - Removing or modifying Harden-Runner from a workflow
