@@ -147,13 +147,18 @@ def audit_nodejs(root):
 
     # packageManager field can override manager detection
     pkg = {}
+    pkg = {}
     try:
         import json as _json
 
-        pkg = _json.loads(read(r / "package.json"))
+        loaded = _json.loads(read(r / "package.json"))
+        if isinstance(loaded, dict):
+            pkg = loaded
     except Exception:
         pass
     pm_field = pkg.get("packageManager", "")
+    if not isinstance(pm_field, str):
+        pm_field = ""
     if pm_field.startswith("pnpm"):
         manager = "pnpm"
     elif pm_field.startswith("yarn"):
@@ -433,13 +438,18 @@ def audit_php(root):
     try:
         import json as _json
 
-        composer_json = _json.loads(read(r / "composer.json"))
+        loaded = _json.loads(read(r / "composer.json"))
+        if isinstance(loaded, dict):
+            composer_json = loaded
     except Exception:
         pass
 
     loose = []
     for section in ("require", "require-dev"):
-        for pkg_name, ver in composer_json.get(section, {}).items():
+        section_data = composer_json.get(section, {})
+        if not isinstance(section_data, dict):
+            continue
+        for pkg_name, ver in section_data.items():
             if pkg_name == "php":
                 continue
             if re.search(r"[\^~>*]|\|\|", str(ver)):
@@ -451,7 +461,8 @@ def audit_php(root):
     }
 
     # roave/security-advisories
-    has_roave = "roave/security-advisories" in composer_json.get("require-dev", {})
+    require_dev = composer_json.get("require-dev", {})
+    has_roave = isinstance(require_dev, dict) and "roave/security-advisories" in require_dev
     findings["roave_security_advisories"] = {
         "status": status(has_roave),
         "present": has_roave,

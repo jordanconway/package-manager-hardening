@@ -695,6 +695,39 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
   4. Add both files to `REUSE.toml`
   5. Switch the workflow step to `npm ci --ignore-scripts`
 
+### Static application security testing (CodeQL)
+
+- Is there a `.github/workflows/codeql.yml` running `github/codeql-action`? Flag absence as ❌.
+- Does it trigger on `push`, `pull_request` to the default branch, **and** a `schedule` (weekly)? Missing `schedule` is ⚠️ — catches drift after dependency bumps.
+- Does the language matrix include `actions` plus the project's primary language(s)? Missing `actions` is ⚠️ — it complements zizmor by catching workflow vulnerabilities.
+- Is `queries: security-extended` set? Bare default or `security-and-quality` is ⚠️ for security-focused repos (the latter dilutes signal with code-quality findings).
+- Is `egress-policy: audit` set on Harden-Runner? CodeQL legitimately fetches query packs and submits results; `block` is impractical and will break the workflow. Flag `block` here as ⚠️.
+- Is `permissions: security-events: write` granted? Without it the SARIF upload silently no-ops.
+- Note: CodeQL is free for public repos and included with GHAS for private. Mention this when recommending it for private repos.
+
+### Fuzzing
+
+- Is there a fuzzing integration appropriate to the language? Flag absence as ❌ (Scorecard scores 0 for `Fuzzing` without one).
+  - **Python**: `hypothesis` in `[dependency-groups].dev` + at least one `@given(...)` test. Property-based tests count.
+  - **Go**: `func FuzzXxx(f *testing.F)` targets, run as part of CI.
+  - **Rust**: `cargo-fuzz` targets in `fuzz/`.
+  - **C/C++**: ClusterFuzzLite or OSS-Fuzz.
+- For parser-style code (anything consuming external file content, network input, user-controlled strings), the contract under test should be "parser must not crash on arbitrary input." Confirm tests cover the actual parsing surface, not trivial functions.
+- Is the fuzzing dependency hash-verified via the lockfile? `hypothesis` should be in `pyproject.toml [dependency-groups].dev` and locked in `uv.lock`, never installed inline.
+
+### Interpreting Scorecard findings
+
+When reviewing a repo's Scorecard score (Security tab → Code scanning → ScorecardID alerts), some findings are deliberately not actionable for legitimate reasons. Recognise and document these rather than chasing a green-only score:
+
+- **`Maintained` < 90 days**: a time-based finding for new repos. Auto-resolves; document and dismiss as `won't fix` if the repo is genuinely active. No code change.
+- **`Code-Review` 0/N approved changesets**: Scorecard wants every PR approved by a different person. Conflicts with deliberate single-maintainer policies. If the user explicitly wants to merge their own PRs, document the trade-off in `SECURITY.md` and dismiss with `won't fix` + comment.
+- **`CII-Best-Practices` 0**: requires self-certification at <https://www.bestpractices.dev/>. Cannot be automated; document as a roadmap item with the registration URL. Once awarded, add the badge to README.
+- **`Pinned-Dependencies` 9 ("npmCommand not pinned by hash")**: see CI tool installs section above; fix by switching to `npm ci --ignore-scripts` from a committed lockfile.
+- **`Token-Permissions` < 10**: a workflow grants more than `contents: read` without job-level overrides. Fix at the workflow level.
+- **`Dangerous-Workflow` finding**: `pull_request_target` with checkout-of-head, or expression injection. Treat as urgent — these are RCE-equivalent.
+
+When dismissing a Scorecard alert, always set `dismissed_reason: won't fix` (the API only accepts `false positive`, `won't fix`, `used in tests`) and include a `dismissed_comment` linking to the documented justification in `SECURITY.md`. The comment must be ≤ 280 chars.
+
 ### SECURITY.md and private vulnerability reporting
 
 - Is there a `SECURITY.md` at the repo root? Flag absence as ❌.
