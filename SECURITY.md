@@ -32,7 +32,20 @@ This is a documentation and tooling repository — it does not run as a service 
 - Bad advice in the documentation (e.g. an `allowed-endpoints` list that allows exfiltration, a recommended action SHA that turns out to be malicious)
 - A vulnerability in this repo's own CI (workflow injection, secret exposure, etc.)
 
-Maintainers will acknowledge reports within **7 days** and aim to publish a fix or mitigation within **30 days** of confirmation. Critical issues affecting downstream consumers (e.g. malicious advice that has already been merged) will be triaged faster.
+### Service-level commitments
+
+| Stage | Target |
+|---|---|
+| Acknowledge receipt of report | within **7 days** |
+| Initial assessment + severity triage | within **14 days** |
+| Fix or documented mitigation — **critical** severity | within **30 days** of confirmation |
+| Fix or documented mitigation — **high / medium** severity | within **60 days** of confirmation |
+| Fix or documented mitigation — **low** severity | best-effort, typically next release |
+| Public disclosure (after fix or coordinated date) | within **90 days** of report |
+
+Severity follows [CVSS v3.1](https://www.first.org/cvss/v3-1/). Critical issues affecting downstream consumers (for example, malicious advice that has already been merged and adopted) will be triaged faster than the table indicates.
+
+If you do not receive an acknowledgement within 7 days, please open a public issue saying "I sent a private report on `<date>` and have not heard back" — do not include vulnerability details in the public issue.
 
 ## Scope
 
@@ -69,4 +82,4 @@ Two Scorecard checks are deliberately not satisfied for this repository, and the
 
 ## OpenSSF Best Practices Badge
 
-A self-certification at <https://www.bestpractices.dev/> is on the roadmap. Once awarded, the badge will appear next to the Scorecard badge in [README.md](README.md). Until then, Scorecard's `CII-Best-Practices` check will report 0; this is a known gap rather than a missing control.
+A Passing-tier self-certification at <https://www.bestpractices.dev/> is in progress. Once awarded, the badge will appear next to the Scorecard badge in [README.md](README.md). Scorecard's `CII-Best-Practices` check will report 0 until the badge is awarded; this is a known gap rather than a missing control.
