@@ -273,6 +273,17 @@ It's PR-only, free, and requires no infrastructure. It also writes a summary com
 
 Make the job a required status check on `main` so it cannot be merged around. Tune `fail-on-severity` (`critical | high | moderate | low`) to your project's risk tolerance.
 
+**Endpoint requirements**: `dependency-review-action` **v4.9.0+** queries `api.deps.dev` and `api.securityscorecards.dev` for vulnerability and Scorecard data, in addition to the standard `api.github.com` / `github.com` / `objects.githubusercontent.com`. v4.8.x did not need these. A Dependabot bump from 4.8.x → 4.9.x will fail in `block` mode with `fetch failed` until the two new endpoints are added to the allowlist:
+
+```yaml
+allowed-endpoints: >
+  api.github.com:443
+  github.com:443
+  objects.githubusercontent.com:443
+  api.deps.dev:443
+  api.securityscorecards.dev:443
+```
+
 **Prerequisite**: `dependency-review-action` requires Dependabot security updates to be enabled on the repo (not just the always-on dependency graph). Without it, every run fails with `Dependency review is not supported on this repository. Please ensure that Dependency graph is enabled`. Enable via Settings → Code security → "Dependabot security updates", or:
 
 ```bash
