@@ -65,6 +65,8 @@ steps:
 
 Add ecosystem-specific endpoints as needed (e.g. `pypi.org:443 files.pythonhosted.org:443` for Python jobs, `registry.npmjs.org:443` for Node.js jobs).
 
+For any action that downloads a binary from a GitHub release (e.g. `astral-sh/setup-uv`, `opentofu/setup-opentofu`), also allow `release-assets.githubusercontent.com:443` — modern GitHub release downloads redirect through that host. The older `github-production-release-asset-2e65be.s3.amazonaws.com` is deprecated and will fail with `ECONNREFUSED` in `block` mode.
+
 **Exception:** jobs that fetch arbitrary external URLs (link checkers, scanners) must use `egress-policy: audit` since a fixed allowlist cannot be constructed. Add a comment explaining why.
 
 Start new jobs in `audit` mode and tighten to `block` once the allowlist is confirmed from the audit logs.
@@ -83,6 +85,8 @@ Pin all tool installs in CI steps to exact versions. Do not use bare installs:
 - run: pip install ruff
 - run: npx --yes markdownlint-cli2
 ```
+
+**Dependabot blind spot:** inline `pip install x==y` / `npm install x@y` lines in workflow files are pinned but **not parsed by Dependabot** — no ecosystem will open update PRs for them, and they silently rot. For tools used by CI, prefer declaring them in a manifest Dependabot understands (e.g. `pyproject.toml [dependency-groups]` for Python, `package.json` `devDependencies` for Node) and invoking via `uv run` / `npx` from the locked install. Inline pins are acceptable only as a short-term measure with a tracked follow-up.
 
 ## Expression Injection
 

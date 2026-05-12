@@ -123,7 +123,11 @@ Start in `audit` mode for new workflows, then tighten to `block` once the egress
       objects.githubusercontent.com:443
       pypi.org:443
       files.pythonhosted.org:443
+      astral.sh:443
+      release-assets.githubusercontent.com:443
 ```
+
+The last two endpoints are required only when `astral-sh/setup-uv` runs. GitHub release downloads now redirect through `release-assets.githubusercontent.com`; the older `github-production-release-asset-2e65be.s3.amazonaws.com` host is deprecated and will fail with `ECONNREFUSED` in `block` mode.
 
 ## What Requires Human Review
 
@@ -132,6 +136,6 @@ The following changes must not be made autonomously and require explicit human a
 - Adding a new dependency with no prior entry in the lockfile
 - Upgrading a major version
 - Disabling or removing `exclude-newer` from `[tool.uv]`
-- Removing `require-hashes` or `verify-hashes`
+- Removing `require-hashes` or `verify-hashes` from `[tool.uv.pip]`
 - Modifying `.github/dependabot.yml` cooldown values downward
 - Removing or modifying Harden-Runner from a workflow

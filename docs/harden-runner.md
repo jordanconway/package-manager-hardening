@@ -55,6 +55,15 @@ Once the egress policy is stable, switch to `block` and enumerate only the endpo
       files.pythonhosted.org:443
 ```
 
+If the workflow uses `astral-sh/setup-uv` (or any action that downloads a binary from a GitHub release), add:
+
+```yaml
+      astral.sh:443
+      release-assets.githubusercontent.com:443
+```
+
+GitHub release downloads now redirect through `release-assets.githubusercontent.com`. Older allowlists may reference `github-production-release-asset-2e65be.s3.amazonaws.com` — that host is deprecated for new release downloads and will fail with `ECONNREFUSED` in `block` mode.
+
 **Go:**
 
 ```yaml
