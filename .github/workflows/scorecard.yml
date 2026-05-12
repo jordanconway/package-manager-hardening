@@ -49,6 +49,13 @@ jobs:
           results_format: sarif
           # Publish results to OpenSSF so the README badge works.
           publish_results: true
+          # Fine-grained PAT with Administration: Read-only on this repo.
+          # Required because the default GITHUB_TOKEN cannot read classic
+          # branch protection rules (the API the Branch-Protection check
+          # uses). Without this, the action fails with:
+          #   "some github tokens can't read classic branch protection rules"
+          # Docs: https://github.com/ossf/scorecard-action/blob/main/docs/authentication/fine-grained-auth-token.md
+          repo_token: ${{ secrets.SCORECARD_TOKEN }}
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

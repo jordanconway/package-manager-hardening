@@ -676,6 +676,7 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
 - Is `publish_results: true` set so the README badge resolves?
 - Is the workflow's `egress-policy` set to `audit` (not `block`)? Scorecard legitimately contacts deps.dev, OSV, npm, PyPI, etc. and cannot run under a fixed allowlist. Flag `block` here as ⚠️.
 - Is the Scorecard badge in the README so the score is publicly visible?
+- Is `repo_token: ${{ secrets.SCORECARD_TOKEN }}` set on the action step? Without it, the `Branch-Protection` check fails the entire run with `some github tokens can't read classic branch protection rules`. The token must be a fine-grained PAT with **only** `Administration: Read-only` on the target repo (no other scopes). Flag absence as ❌ if branch protection is configured; ⚠️ otherwise.
 - Note that a *dropping* Scorecard score is a regression to triage — not just a green/red flag at a point in time.
 - **Common Scorecard `Pinned-Dependencies` finding**: inline `npm install pkg@ver` and `pip install pkg==x.y.z` in workflow steps are version-pinned but not hash-verified, and Scorecard scores them ~9/10. The fix is to commit a lockfile and switch to `npm ci --ignore-scripts` / `uv sync --frozen --group dev`. Recommend this whenever you see inline tool installs in a workflow.
 
