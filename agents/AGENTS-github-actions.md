@@ -90,6 +90,8 @@ Every repository must publish an OpenSSF Scorecard score via `ossf/scorecard-act
 
 The Scorecard workflow uses `egress-policy: audit`, not `block` — the analyser legitimately contacts dozens of ecosystem endpoints. Do not change to `block`.
 
+The `ossf/scorecard-action` step **must** receive `repo_token: ${{ secrets.SCORECARD_TOKEN }}` if the repository has any branch protection configured. The default `GITHUB_TOKEN` cannot read the classic branch-protection API and the entire run will fail with `some github tokens can't read classic branch protection rules`. The token must be a fine-grained PAT scoped **only** to `Administration: Read-only` on the target repo — never a classic PAT, never broader scopes, never named `GITHUB_TOKEN` (reserved). When recommending the Scorecard workflow, include the secret-creation step in the same instruction.
+
 A dropping Scorecard score is a regression that must be triaged like any other CI failure. Common causes: a new unpinned action, a removed branch protection rule, a permission grant added without justification.
 
 ## Vulnerability disclosure: SECURITY.md

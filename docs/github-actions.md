@@ -333,6 +333,9 @@ jobs:
           results_file: results.sarif
           results_format: sarif
           publish_results: true
+          # Required for the Branch-Protection check (default GITHUB_TOKEN
+          # cannot read classic branch protection rules). See note below.
+          repo_token: ${{ secrets.SCORECARD_TOKEN }}
       - uses: github/codeql-action/upload-sarif@<sha> # v3
         with:
           sarif_file: results.sarif
@@ -345,6 +348,32 @@ Add the badge to your README so the score is publicly visible:
 ```
 
 Scorecard's `egress-policy` must be `audit`, not `block` — the analyser legitimately contacts dozens of endpoints (deps.dev, OSV, npm, PyPI, etc.) to score your project against the ecosystem.
+
+### Fine-grained PAT for the Branch-Protection check
+
+Without a `repo_token`, the scheduled run fails with:
+
+```text
+internal error: error during branchesHandler.setup:
+some github tokens can't read classic branch protection rules
+```
+
+The default `GITHUB_TOKEN` minted for a workflow does not have the scopes needed to read the classic branch-protection API (`/repos/:o/:r/branches/:branch/protection`). Mint a **fine-grained personal access token** with **only** the scopes Scorecard needs:
+
+1. <https://github.com/settings/personal-access-tokens/new>
+2. Resource owner: your user or org
+3. Repository access: **Only select repositories** → the repo being scored
+4. Repository permissions: **Administration: Read-only** (the only permission needed)
+5. Set an expiration (1 year is reasonable; calendar-reminder to rotate)
+6. Save the token as a repository secret named `SCORECARD_TOKEN`:
+
+   ```bash
+   gh secret set SCORECARD_TOKEN --repo <owner>/<repo>
+   ```
+
+7. Pass it via `repo_token: ${{ secrets.SCORECARD_TOKEN }}` on the `ossf/scorecard-action` step.
+
+Do **not** use a classic PAT or grant additional scopes — a token with more access than needed defeats the purpose. Do not name the secret `GITHUB_TOKEN` (reserved). Per the upstream docs: <https://github.com/ossf/scorecard-action/blob/main/docs/authentication/fine-grained-auth-token.md>.
 
 ## SECURITY.md and private vulnerability reporting
 
