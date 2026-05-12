@@ -32,6 +32,32 @@ concurrency:
 
 For release / deploy workflows where in-flight runs should complete, keep the `group:` but set `cancel-in-progress: false`.
 
+## Static analysis: CodeQL (SAST)
+
+Every repository must run CodeQL on every push, every PR to the default branch, and on a weekly schedule. SAST is a Scorecard requirement and CodeQL is the canonical implementation for GitHub.
+
+- Use a separate workflow file: `.github/workflows/codeql.yml`. Do not bundle into `ci.yml`.
+- Enable at minimum the `actions` language plus the primary application language(s). `actions` complements zizmor by catching workflow vulnerabilities CodeQL surfaces differently.
+- Use `queries: security-extended` for security-focused repos. Do not use `security-and-quality` (noisier code-quality findings dilute the signal).
+- `egress-policy` must be `audit`, not `block` — CodeQL fetches query packs from `objects.githubusercontent.com` and submits results back to the API. A fixed allowlist is impractical.
+- `permissions: security-events: write` is required to upload SARIF; do not omit.
+- Do not delete the workflow, narrow the language matrix, or downgrade `security-extended` to `security-and-quality` without explicit human approval.
+
+## Fuzzing
+
+Every repository with parser-style code (anything that consumes external file content, network input, or user-controlled strings) must have a fuzzing integration. This satisfies Scorecard's `Fuzzing` check and catches a class of bugs unit tests routinely miss.
+
+Minimum viable per language:
+
+- **Python** — `hypothesis` property-based tests in `tests/`. Pin in `pyproject.toml [dependency-groups].dev` so it's hash-verified via the lockfile.
+- **Go** — `go test -fuzz` targets (`func FuzzXxx(f *testing.F)`); run as part of CI.
+- **Rust** — `cargo-fuzz` targets under `fuzz/`.
+- **C / C++** — ClusterFuzzLite or OSS-Fuzz integration.
+
+The contract under test is usually "parser must not crash on arbitrary input." Property tests are not full fuzzing campaigns but Scorecard accepts them, and they catch ReDoS, encoding edge cases, and crash-on-empty-input bugs that unit tests miss.
+
+Do not remove the fuzzing target / dev-dep / test file without explicit human approval.
+
 ## Static analysis: zizmor
 
 Every repository must run [`zizmor`](https://docs.zizmor.sh) against `.github/workflows/` in CI as a required status check. zizmor catches the controls in this file plus many others (template injection, mutable reusable-workflow refs, dangerous triggers, secrets exposed to forks, etc.) and is the canonical static analyser for this domain.
@@ -206,5 +232,8 @@ The following changes must not be made autonomously and require explicit human a
 - Removing the zizmor job, lowering its `--min-severity`, or suppressing a finding without a documented justification
 - Removing the dependency-review job, lowering its `fail-on-severity`, or removing it from required status checks
 - Removing the Scorecard workflow, or changing its `egress-policy` away from `audit`
+- Removing the CodeQL workflow, narrowing its language matrix, or downgrading from `security-extended` to `security-and-quality`
+- Removing the fuzzing integration (`hypothesis` dev-dep + `tests/test_fuzz.py` for Python; equivalents for other languages)
 - Bumping a runner image (`ubuntu-24.04` → `ubuntu-26.04`, etc.) without confirming the matrix still passes
 - Removing or weakening `SECURITY.md` or disabling private vulnerability reporting
+- Dismissing a Scorecard / CodeQL finding without a documented justification in `SECURITY.md`

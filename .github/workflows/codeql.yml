@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: 2026 The Linux Foundation
+#
+# SPDX-License-Identifier: MIT
+
+# CodeQL static analysis (SAST) for Python.
+# Satisfies OpenSSF Scorecard's "SAST" check and surfaces results in the
+# Security tab. Free for public repos; included with GHAS for private.
+#
+# Docs: https://docs.github.com/en/code-security/code-scanning
+
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "23 6 * * 1"  # weekly, Monday 06:23 UTC (offset from Scorecard)
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: CodeQL analysis (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    permissions:
+      security-events: write   # upload SARIF to the Security tab
+      contents: read           # checkout
+      actions: read            # codeql reads workflow context
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, actions]
+    steps:
+      - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2
+        with:
+          # CodeQL contacts many endpoints to download query packs and submit
+          # results; documented to require audit mode rather than block.
+          egress-policy: audit
+          disable-sudo: true
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: github/codeql-action/init@7fd177fa680c9881b53cdab4d346d32574c9f7f4 # v3.35.4
+        with:
+          languages: ${{ matrix.language }}
+          # security-extended adds queries with lower precision/recall but
+          # higher coverage; appropriate for a security-tooling repo.
+          queries: security-extended
+          build-mode: none
+
+      - uses: github/codeql-action/analyze@7fd177fa680c9881b53cdab4d346d32574c9f7f4 # v3.35.4
+        with:
+          category: "/language:${{ matrix.language }}"
