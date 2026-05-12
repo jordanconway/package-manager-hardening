@@ -60,3 +60,31 @@ updates:
       semver-major-days: 30
       semver-minor-days: 7
       semver-patch-days: 3
+
+  # npm tooling for CI (markdownlint-cli2) declared in package.json
+  # and locked in package-lock.json. Installed with `npm ci` so the
+  # lockfile's integrity hashes are verified (Scorecard: Pinned-Dependencies).
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "javascript"
+    groups:
+      npm-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
