@@ -60,6 +60,7 @@ Per-package overrides using `include` and `exclude`:
 **Key behaviours to note:**
 
 - Cooldown values must be between 1 and 90 days.
+- **`github-actions` ecosystem special case:** action tags (`v4`, `v4.1.2`) aren't always parsed as SemVer by Dependabot, so `semver-major-days` / `semver-minor-days` / `semver-patch-days` do not reliably apply. For the `github-actions` ecosystem, rely on `default-days` only.
 - **Security update PRs automatically bypass the cooldown** — a CVE-triggered Dependabot PR is never delayed, regardless of `cooldown` settings.
 - Cooldown only gates automated version update PRs. A developer running `npm install foo` or `go get` locally bypasses it entirely.
 - Supported for all ecosystems including npm, pip, gomod, cargo, NuGet, Helm, and more.

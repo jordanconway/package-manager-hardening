@@ -61,6 +61,7 @@ Each check has a `status` field: `"pass"`, `"warn"`, `"fail"`, or `"missing"`.
 - `rust.exact_pins.loose` — Cargo entries without `=` prefix. Flag each one.
 - `terraform.exact_pins.loose` — provider version constraints that aren't `= X.Y.Z`. Flag each one and note this requires human approval to change.
 - `dependabot.ecosystems.<eco>.status: warn` — ecosystem is in dependabot.yml but has no `cooldown:` block.
+- `dependabot.ecosystems.github-actions` — only `default-days` is reliable here; `semver-*-days` keys often don't trigger because action tags aren't parsed as SemVer. Don't flag a missing `semver-*-days` for `github-actions` as a gap.
 - `dependabot.ecosystems.<eco>.status: missing` — ecosystem not in dependabot.yml at all.
 - `harden_runner.workflows.<name>.egress_policy: audit` — runner is present but in audit mode, not block. Flag as ⚠️.
 - `harden_runner.workflows.<name>.harden_runner_present: false` — missing entirely. Flag as ❌.
@@ -198,6 +199,17 @@ cooldown:
   semver-major-days: 30
   semver-minor-days: 7
   semver-patch-days: 3
+```
+
+**Dependabot cooldown for `github-actions` (special case):**
+
+GitHub Actions tags (`v4`, `v4.1.2`, plus the SHA-pinned `# v4.1.2` comment workflow) are not always parsed as SemVer by Dependabot, so the `semver-*-days` keys do not reliably apply. Use only `default-days` for the `github-actions` ecosystem so the cooldown always takes effect:
+
+```yaml
+# Note: GitHub Actions tags (v4, v4.1.2) aren't always parsed as SemVer
+# by Dependabot, so we rely on default-days which always applies.
+cooldown:
+  default-days: 7
 ```
 
 **Composer CI install:**

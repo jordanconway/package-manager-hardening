@@ -191,8 +191,10 @@ updates:
     schedule:
       interval: "weekly"
     cooldown:
-      default-days: 3
-      semver-major-days: 14
+      default-days: 7
+      # Note: semver-*-days keys are unreliable for the github-actions
+      # ecosystem because action tags (v4, v4.1.2) aren't always parsed
+      # as SemVer by Dependabot. Rely on default-days, which always applies.
 ```
 
 Dependabot understands SHA-pinned actions and will propose updates with both the new SHA and the updated version comment.
