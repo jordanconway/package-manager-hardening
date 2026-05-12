@@ -71,7 +71,8 @@ This repository's posture is publicly visible:
 - **Harden-Runner** — every CI job runs under runtime egress control (`block` mode with explicit allowlists, or `audit` mode where `block` is impractical).
 - **Secret scanning + push protection** — enabled on the repo.
 - **Private vulnerability reporting** — enabled (this is what the link above uses).
-- **Property-based fuzzing** — [`tests/test_fuzz.py`](tests/test_fuzz.py) uses Hypothesis to fuzz the audit-script parsers against adversarial inputs.
+- **Property-based fuzzing** — [`tests/test_fuzz.py`](tests/test_fuzz.py) uses Hypothesis to fuzz the audit-script parsers against adversarial inputs on every PR.
+- **Coverage-guided fuzzing** — [`fuzz/`](fuzz/) holds Atheris (libFuzzer) harnesses, run weekly via [`.github/workflows/fuzz.yml`](.github/workflows/fuzz.yml). Atheris is what satisfies OpenSSF Scorecard's `Fuzzing` check (Hypothesis is not Scorecard-recognised for Python).
 
 ## Known Scorecard trade-offs
 

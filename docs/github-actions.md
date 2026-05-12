@@ -450,14 +450,93 @@ Languages worth enabling beyond your application code:
 
 ## Fuzzing
 
-OpenSSF Scorecard's `Fuzzing` check scores 0 if it finds no fuzzer integration. For most repos, the lowest-friction satisfying pattern is:
+OpenSSF Scorecard's [`Fuzzing` check](https://github.com/ossf/scorecard/blob/main/docs/checks.md#fuzzing) scores 0 if it finds no fuzzer integration. **The detection is narrow and language-specific** — for Python in particular, Hypothesis is *not* recognised (despite being recognised for Erlang / Haskell / Elixir / Gleam). The recognised options are:
 
-- **Python**: Hypothesis property-based tests in `tests/`. Scorecard recognises `import hypothesis` as fuzzing.
-- **Go**: built-in `go test -fuzz` tests (`func FuzzXxx(f *testing.F)`).
-- **Rust**: `cargo-fuzz` targets in `fuzz/`.
-- **C / C++ / anything else**: ClusterFuzzLite or OSS-Fuzz integration.
+| Language | Recognised pattern |
+|---|---|
+| Python | `import atheris` in any `*.py` file |
+| Go | `func Fuzz<Name>(f *testing.F)` in any `*_test.go` |
+| Rust | `cargo-fuzz` targets under `fuzz/` |
+| C / C++ | `LLVMFuzzerTestOneInput` in `*.c` / `*.cc` / `*.cpp` |
+| JavaScript / TypeScript | `fast-check` import |
+| Erlang / Haskell / Elixir / Gleam | property-based test imports (QuickCheck, Hedgehog, PropCheck, etc.) |
+| Any language | `.clusterfuzzlite/Dockerfile` exists, or repo listed at <https://github.com/google/oss-fuzz/tree/master/projects> |
 
-Property-based tests are not full fuzzing campaigns, but they catch the same class of bugs (regex catastrophic backtracking, parser crashes on adversarial inputs, encoding edge cases) and integrate cleanly into the existing test job. Example for a Python repo with parser-style code:
+### Python: Atheris + Hypothesis is the right combination
+
+The two tools serve different purposes; do both:
+
+- **Atheris** — coverage-guided libFuzzer for Python. Watches which branches each input exercises and mutates toward unexplored ones. Catches deep parser bugs, ReDoS, encoding edge cases. Recognised by Scorecard. Wheels only ship for Linux x86_64 + Python ≤ 3.11; doesn't run on macOS without building from source.
+- **Hypothesis** — property-based testing. Blind random generation against declarative invariants. Fast, runs on every PR, catches contract violations property tests are good at. **Not** recognised by Scorecard.
+
+Layout:
+
+```text
+fuzz/
+  fuzz_<surface>.py     # one harness per surface
+  requirements.txt      # hash-pinned: atheris==<x>
+  README.md             # how to run, how to reproduce crashes
+tests/
+  test_fuzz.py          # Hypothesis property suite, runs on every PR
+```
+
+Minimal Atheris harness:
+
+```python
+# fuzz/fuzz_parser.py
+import sys, atheris
+with atheris.instrument_imports():
+    from my_module import parse
+
+def TestOneInput(data: bytes) -> None:
+    fdp = atheris.FuzzedDataProvider(data)
+    content = fdp.ConsumeUnicode(sys.maxsize)
+    try:
+        parse(content)
+    except Exception as exc:
+        raise AssertionError(f"parse raised: {exc}") from exc
+
+atheris.Setup(sys.argv, TestOneInput)
+atheris.Fuzz()
+```
+
+Run continuously on a schedule (not per-PR — minutes-to-hours of runtime):
+
+```yaml
+# .github/workflows/fuzz.yml
+on:
+  schedule:
+    - cron: "17 7 * * 1"  # weekly
+  workflow_dispatch:
+jobs:
+  fuzz:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        harness: [fuzz_parser]
+    steps:
+      - uses: actions/checkout@<sha>
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@<sha>
+        with: { python-version: "3.11" }  # atheris wheels: <= 3.11 only
+      - run: python -m pip install --require-hashes -r fuzz/requirements.txt
+      - run: |
+          mkdir -p fuzz-artifacts
+          python fuzz/${{ matrix.harness }}.py \
+            -atheris_runs=0 -max_total_time=180 \
+            -artifact_prefix=fuzz-artifacts/
+      - if: failure()
+        uses: actions/upload-artifact@<sha>
+        with: { name: crash-${{ matrix.harness }}, path: fuzz-artifacts/ }
+```
+
+The `--require-hashes` install is mandatory: this is exactly the supply-chain pattern this project documents elsewhere. Pin Atheris in `fuzz/requirements.txt` with hashes (regenerate via `pip-compile --generate-hashes`).
+
+### When Hypothesis-only is acceptable
+
+If the project is a docs / configuration / non-parser repo with no untrusted-input attack surface, a Hypothesis-only suite is reasonable and you can mark `Fuzzing` as a known-acceptable 0 in `SECURITY.md` (similar to the documented `Code-Review` and `Maintained` trade-offs). Don't add Atheris just for the score — it's only worth it if you have parser-style code that benefits from coverage-guided exploration.
+
+Property-based tests still catch the bugs Atheris can't (declarative invariants, contract violations) and are fast enough for every PR:
 
 ```python
 # tests/test_fuzz.py
@@ -466,12 +545,9 @@ from hypothesis import given, settings, strategies as st
 @given(content=st.text(max_size=4096))
 @settings(max_examples=200, deadline=500)
 def test_parser_never_raises(content):
-    # Property: parser must not raise on arbitrary input
     result = my_module.parse(content)
     assert result is None or isinstance(result, dict)
 ```
-
-Add `hypothesis==<version>` to your dev dependency group so it's hash-verified via the lockfile.
 
 ## Static analysis with zizmor
 
@@ -553,7 +629,7 @@ Dependabot understands SHA-pinned actions and will propose updates with both the
 | Vulnerability disclosure | `SECURITY.md` + GitHub private vulnerability reporting enabled |
 | Static analysis (workflows) | `zizmor` job in CI; SHA-pinned, `--min-severity=medium` |
 | Static analysis (code) | `CodeQL` workflow; `security-extended` queries; `audit` egress |
-| Fuzzing | Hypothesis (Python) / `go test -fuzz` (Go) / `cargo-fuzz` (Rust) / OSS-Fuzz (C/C++) |
+| Fuzzing | Atheris (Python, coverage-guided) + Hypothesis (Python, property-based) / `go test -fuzz` (Go) / `cargo-fuzz` (Rust) / OSS-Fuzz / ClusterFuzzLite (C/C++/any) |
 | Avoid `pull_request_target` | Use `pull_request` unless write access is explicitly needed |
 | Prevent expression injection | Pass untrusted values via `env:`, not `${{ }}` in `run:` |
 | OIDC for cloud auth | `id-token: write` + federated identity; no long-lived keys |

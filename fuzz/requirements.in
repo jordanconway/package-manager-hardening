@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 The Linux Foundation
+#
+# SPDX-License-Identifier: MIT
+#
+# Source for fuzz/requirements.txt.
+# Regenerate the hashed lockfile with:
+#   pip-compile --generate-hashes --output-file=fuzz/requirements.txt fuzz/requirements.in
+#
+atheris==2.3.0

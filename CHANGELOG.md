@@ -12,9 +12,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Coverage-guided fuzz harnesses in [`fuzz/`](fuzz/) using Atheris (libFuzzer for Python). Two harnesses cover every parser and helper. Hash-pinned in [`fuzz/requirements.txt`](fuzz/requirements.txt) and [`fuzz/requirements.in`](fuzz/requirements.in). Documented in [`fuzz/README.md`](fuzz/README.md).
+- New scheduled workflow [`.github/workflows/fuzz.yml`](.github/workflows/fuzz.yml) runs each Atheris harness for 3 minutes weekly (Monday 07:17 UTC) and on `workflow_dispatch`. Crashes upload as artifacts and fail the run. Pinned to `ubuntu-24.04` + Python 3.11 (Atheris wheel constraint).
+
 ### Fixed
 
 - Scorecard workflow now passes a fine-grained `SCORECARD_TOKEN` to `ossf/scorecard-action` so the `Branch-Protection` check can read the classic branch-protection API. Without this the entire run failed with `some github tokens can't read classic branch protection rules`. Token requires only `Administration: Read-only` scope on this repo. Documented in [docs/github-actions.md](docs/github-actions.md), the harden-packages skill audit checklist, and AGENTS-github-actions.md.
+- Documentation correction: previous releases stated that Hypothesis property-based tests satisfy OpenSSF Scorecard's `Fuzzing` check for Python. **They do not** — Scorecard's Python detector matches `import atheris` only (Hypothesis is recognised for Erlang / Haskell / Elixir / Gleam, but not Python). Corrected in `docs/github-actions.md`, `skills/harden-packages/SKILL.md`, `agents/AGENTS-github-actions.md`, and `SECURITY.md`.
 
 ## [0.1.0] - 2026-05-12
 

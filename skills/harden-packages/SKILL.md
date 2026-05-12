@@ -708,13 +708,15 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
 
 ### Fuzzing
 
-- Is there a fuzzing integration appropriate to the language? Flag absence as ❌ (Scorecard scores 0 for `Fuzzing` without one).
-  - **Python**: `hypothesis` in `[dependency-groups].dev` + at least one `@given(...)` test. Property-based tests count.
+- Is there a fuzzing integration appropriate to the language? Flag absence as ❌ (Scorecard scores 0 for `Fuzzing` without one). **Important**: Scorecard's recognition is narrow and language-specific; do not assume a property-based test suite counts.
+  - **Python**: `import atheris` somewhere in the repo. Hypothesis is **not** recognised by Scorecard for Python (unlike for Erlang / Haskell / Elixir / Gleam, where property-based testing is recognised). Add an Atheris harness alongside the Hypothesis suite — they catch different bug classes (Hypothesis = blind property; Atheris = coverage-guided libFuzzer). Pin Atheris in a hash-verified `fuzz/requirements.txt` (it can't go in the main dev group because wheels only ship for Linux x86_64 + Python ≤ 3.11).
   - **Go**: `func FuzzXxx(f *testing.F)` targets, run as part of CI.
   - **Rust**: `cargo-fuzz` targets in `fuzz/`.
-  - **C/C++**: ClusterFuzzLite or OSS-Fuzz.
+  - **C/C++**: ClusterFuzzLite (`.clusterfuzzlite/Dockerfile`) or OSS-Fuzz (project listed in <https://github.com/google/oss-fuzz/tree/master/projects>).
+  - **Cross-language alternative**: `.clusterfuzzlite/Dockerfile` is recognised regardless of language and gives you actual continuous fuzzing infrastructure. Heavier setup but more value.
 - For parser-style code (anything consuming external file content, network input, user-controlled strings), the contract under test should be "parser must not crash on arbitrary input." Confirm tests cover the actual parsing surface, not trivial functions.
-- Is the fuzzing dependency hash-verified via the lockfile? `hypothesis` should be in `pyproject.toml [dependency-groups].dev` and locked in `uv.lock`, never installed inline.
+- Recommend running fuzz harnesses on a schedule (weekly is fine) rather than per-PR — coverage-guided fuzzing wants minutes-to-hours of runtime per harness, which is too slow for the critical PR path.
+- Reference: <https://github.com/ossf/scorecard/blob/main/docs/checks.md#fuzzing>.
 
 ### Interpreting Scorecard findings
 

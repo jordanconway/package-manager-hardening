@@ -88,3 +88,26 @@ updates:
       semver-major-days: 30
       semver-minor-days: 7
       semver-patch-days: 3
+
+  # Atheris fuzzer (separate from main dev deps because it only ships
+  # wheels for Linux + Python <= 3.11; lives in fuzz/requirements.txt
+  # with --require-hashes pinning).
+  - package-ecosystem: "pip"
+    directory: "/fuzz"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "python"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
