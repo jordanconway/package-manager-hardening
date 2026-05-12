@@ -117,14 +117,22 @@ Example report structure:
 ❌ release.yml: harden-runner not present
 ❌ No zizmor static analysis configured
 ⚠️ actions/checkout in ci.yml does not set persist-credentials: false (zizmor: artipacked × 3)
+⚠️ ci.yml uses `runs-on: ubuntu-latest` (4 jobs) — should pin to `ubuntu-24.04`
+❌ No `actions/dependency-review-action` job (PRs can introduce vulnerable deps unchecked)
+❌ No OpenSSF Scorecard workflow
+❌ No `SECURITY.md` and private vulnerability reporting is disabled
 
 ### Priority fixes
 1. Add harden-runner to release.yml — release workflows are high-value targets
 2. Add a zizmor job to CI; pin the version (`uvx zizmor==X.Y.Z`) and resolve current findings
-3. Set egress-policy: block in ci.yml once allowlist is confirmed
-4. Add require-hashes = true under [tool.uv.pip] (defensive, for ad-hoc `uv pip install`)
-5. Add pip entry to dependabot.yml
-6. Set trustPolicy: no-downgrade in pnpm-workspace.yaml
+3. Add `actions/dependency-review-action` as a PR-only required check (fail-on-severity: high, license denylist)
+4. Add `ossf/scorecard-action` workflow (weekly + push to main) with SARIF upload + README badge
+5. Add `SECURITY.md` linking to private vulnerability reporting; enable PVR in repo Settings
+6. Pin runner images: `ubuntu-latest` → `ubuntu-24.04` across all jobs
+7. Set egress-policy: block in ci.yml once allowlist is confirmed
+8. Add require-hashes = true under [tool.uv.pip] (defensive, for ad-hoc `uv pip install`)
+9. Add pip entry to dependabot.yml
+10. Set trustPolicy: no-downgrade in pnpm-workspace.yaml
 ```
 
 ## Step 4: Offer to fix
@@ -511,6 +519,8 @@ Append the ecosystem-specific endpoints:
 - **Go `go` directive format**: use the full patch version (`go 1.25.9`), not the bare minor (`go 1.25`) or base patch (`go 1.25.0`). `go mod tidy` preserves fully-specified patch versions but normalises `go 1.25` → `go 1.25.0`. govulncheck reads the `go` directive as the stdlib CVE baseline — `go 1.25.0` will surface all CVEs fixed in 1.25.1 through the latest patch. Do **not** split a patch-versioned `go` directive into `go 1.25` + `toolchain go1.25.9` on the assumption that the toolchain directive covers CVE exposure — it does not; only the `go` directive does.
 - **Reusable workflow pinning**: job-level `uses:` entries that delegate to a reusable workflow (e.g., SLSA generators, shared org workflows) are mutable refs and must be SHA-pinned, just like step-level actions. They cannot receive harden-runner steps, so flag them separately.
 - **zizmor in CI**: if the user wants to harden a GitHub Actions setup, recommend adding a `zizmor` job alongside Harden-Runner. They are complementary — Harden-Runner is runtime egress control, zizmor is static analysis of the workflow file itself. Pin the zizmor version (`uvx zizmor==X.Y.Z`) and run at `--min-severity=medium` (default persona) or `--persona=auditor --min-severity=low` (stricter).
+- **dependency-review + Scorecard + SECURITY.md are all zero-infra GitHub-native controls**: when recommending GitHub Actions hardening, offer all three together as a single "CI hardening pack". They cost nothing, require no external accounts or self-hosting, and produce externally visible posture signal (Scorecard badge) plus a vulnerability-disclosure path (`SECURITY.md` + PVR).
+- **Branch protection**: every new required-check job (zizmor, dependency-review, Scorecard) must be added to the repo's required status checks for the default branch, otherwise it can be merged around. Use `gh api -X PUT repos/<owner>/<repo>/branches/<branch>/protection` and update `required_status_checks.contexts`.
 
 ---
 
@@ -636,3 +646,42 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
   - **`dangerous-triggers`** (high): `pull_request_target` combined with a checkout of `github.event.pull_request.head.ref`. Requires immediate human review.
   - **`unpinned-uses`** (high): action referenced by tag (`@v4`) instead of SHA. Already covered by the harden-runner / SHA-pinning checks above, but zizmor will surface it again.
   - **`excessive-permissions`** (medium): workflow or job missing `permissions:` declaration, or granting more than `contents: read` without justification.
+  - **`undocumented-permissions`** (auditor low): `permissions:` block missing inline comments justifying each grant. Fix with trailing `# why this is needed` comments on each line.
+
+### Runner image pinning
+
+- Are all `runs-on:` values pinned to a specific image (`ubuntu-24.04`, `ubuntu-22.04`, `windows-2022`, `macos-14`)? Flag every `ubuntu-latest` / `windows-latest` / `macos-latest` as ⚠️. GitHub rolls these forward and has historically changed pre-installed tools mid-lifecycle.
+- Note that Dependabot does not propose runner-image bumps. Recommend adding a calendar reminder or tracking via a long-lived issue when a new LTS is GA.
+
+### Dependency review on PRs
+
+- Is there an `actions/dependency-review-action` job, gated on `if: github.event_name == 'pull_request'`? Flag absence as ❌.
+- Is `fail-on-severity` at least `high`? `moderate` or `low` is preferred for security-sensitive repos.
+- Is there a `deny-licenses` list appropriate to the project's own license? At minimum, MIT/Apache projects should deny GPL/AGPL.
+- Is `comment-summary-in-pr: on-failure` set so contributors see why the check failed?
+- Is the job a required status check on `main`? If not, the gate can be merged around.
+- **Gotcha**: the action requires Dependabot security updates to be enabled on the repo (not just the always-on dependency graph). Without it, the job fails with `Dependency review is not supported on this repository. Please ensure that Dependency graph is enabled`. Enable it with:
+
+  ```bash
+  gh api -X PATCH repos/<owner>/<repo> \
+    -f 'security_and_analysis[dependabot_security_updates][status]=enabled'
+  ```
+
+  Verify with `gh api repos/<owner>/<repo> --jq '.security_and_analysis.dependabot_security_updates.status'` — should return `enabled`. This is free for public repos and included with GitHub Advanced Security for private repos. Add this to the fix plan whenever you recommend `dependency-review-action`, and re-run any failed job after flipping the setting.
+
+### OpenSSF Scorecard
+
+- Is there a `.github/workflows/scorecard.yml` running `ossf/scorecard-action` on a weekly schedule + push to `main`? Flag absence as ❌.
+- Are SARIF results uploaded via `github/codeql-action/upload-sarif` so they appear in the Security tab?
+- Is `publish_results: true` set so the README badge resolves?
+- Is the workflow's `egress-policy` set to `audit` (not `block`)? Scorecard legitimately contacts deps.dev, OSV, npm, PyPI, etc. and cannot run under a fixed allowlist. Flag `block` here as ⚠️.
+- Is the Scorecard badge in the README so the score is publicly visible?
+- Note that a *dropping* Scorecard score is a regression to triage — not just a green/red flag at a point in time.
+
+### SECURITY.md and private vulnerability reporting
+
+- Is there a `SECURITY.md` at the repo root? Flag absence as ❌.
+- Does it link to `https://github.com/<owner>/<repo>/security/advisories/new`?
+- Does it include explicit "do not file public issues" wording?
+- Does it state response-time expectations (acknowledgement + patch SLOs)?
+- Is GitHub's private vulnerability reporting enabled? Check via `gh api repos/<owner>/<repo>/private-vulnerability-reporting --jq .enabled`. Flag `false` as ❌. Enable with `gh api -X PUT repos/<owner>/<repo>/private-vulnerability-reporting`.

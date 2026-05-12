@@ -206,6 +206,135 @@ concurrency:
 
 For release / deploy workflows where in-flight runs should complete, set `cancel-in-progress: false` instead, but always set the `group`.
 
+## Pin the runner image
+
+`runs-on: ubuntu-latest` is a moving target. GitHub rolls it forward when a new Ubuntu LTS reaches general availability, and has historically changed pre-installed tool versions silently mid-lifecycle. Builds that worked yesterday can fail or, worse, succeed against a different toolchain than you expected. Pin to a specific runner image:
+
+```yaml
+# Bad
+runs-on: ubuntu-latest
+
+# Good
+runs-on: ubuntu-24.04
+```
+
+The same applies to `windows-latest` and `macos-latest`. Bump explicitly when a new image is GA and you've validated your matrix against it. Dependabot does not propose runner-image bumps, so add a calendar reminder or track it in your dependency-review process.
+
+## Block vulnerable / disallowed dependencies on PRs
+
+[`actions/dependency-review-action`](https://github.com/actions/dependency-review-action) compares the PR head against the base branch and fails the check if the diff introduces:
+
+- A dependency with a known vulnerability at or above the configured severity
+- A package on a denylist (e.g. known-malicious or internal-fork-required packages)
+- A license on a denylist (e.g. copyleft licenses incompatible with your project)
+
+It's PR-only, free, and requires no infrastructure. It also writes a summary comment on the PR describing what changed.
+
+```yaml
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write  # for the summary comment
+    steps:
+      - uses: step-security/harden-runner@<sha> # v2
+        with:
+          egress-policy: block
+          disable-sudo: true
+          allowed-endpoints: >
+            api.github.com:443
+            github.com:443
+            objects.githubusercontent.com:443
+      - uses: actions/checkout@<sha> # v4
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@<sha> # v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure
+          deny-licenses: GPL-2.0, GPL-3.0, AGPL-1.0, AGPL-3.0
+```
+
+Make the job a required status check on `main` so it cannot be merged around. Tune `fail-on-severity` (`critical | high | moderate | low`) to your project's risk tolerance.
+
+**Prerequisite**: `dependency-review-action` requires Dependabot security updates to be enabled on the repo (not just the always-on dependency graph). Without it, every run fails with `Dependency review is not supported on this repository. Please ensure that Dependency graph is enabled`. Enable via Settings → Code security → "Dependabot security updates", or:
+
+```bash
+gh api -X PATCH repos/<owner>/<repo> \
+  -f 'security_and_analysis[dependabot_security_updates][status]=enabled'
+```
+
+This is free for public repos and included with GitHub Advanced Security for private repos.
+
+## OpenSSF Scorecard
+
+[OpenSSF Scorecard](https://github.com/ossf/scorecard) automatically scores a repository against ~20 supply-chain best practices (branch protection, signed releases, pinned dependencies, token permissions, fuzzing, vulnerability response, etc.) and uploads results as SARIF to the Security tab. The score is the de-facto external benchmark and a Scorecard badge is now common on hardened OSS projects.
+
+Add it as a separate workflow file (not an additional job in `ci.yml`), so the schedule + permissions stay isolated:
+
+```yaml
+# .github/workflows/scorecard.yml
+name: Scorecard
+on:
+  branch_protection_rule:
+  schedule:
+    - cron: "37 5 * * 1"
+  push:
+    branches: [main]
+permissions: {}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  analysis:
+    runs-on: ubuntu-24.04
+    permissions:
+      security-events: write  # SARIF upload
+      id-token: write         # publish results to OpenSSF (badge)
+      contents: read
+      actions: read
+    steps:
+      - uses: step-security/harden-runner@<sha> # v2
+        with:
+          egress-policy: audit  # scorecard hits many endpoints; block is impractical
+          disable-sudo: true
+      - uses: actions/checkout@<sha> # v4
+        with:
+          persist-credentials: false
+      - uses: ossf/scorecard-action@<sha> # v2
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+      - uses: github/codeql-action/upload-sarif@<sha> # v3
+        with:
+          sarif_file: results.sarif
+```
+
+Add the badge to your README so the score is publicly visible:
+
+```markdown
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/<owner>/<repo>/badge)](https://scorecard.dev/viewer/?uri=github.com/<owner>/<repo>)
+```
+
+Scorecard's `egress-policy` must be `audit`, not `block` — the analyser legitimately contacts dozens of endpoints (deps.dev, OSV, npm, PyPI, etc.) to score your project against the ecosystem.
+
+## SECURITY.md and private vulnerability reporting
+
+Every repository should have a `SECURITY.md` at the root, and should enable GitHub's [private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing/privately-reporting-a-security-vulnerability) under Settings → Code security. Together they give security researchers a clearly documented, non-public channel to disclose vulnerabilities, with a built-in workflow for coordinated disclosure, CVE assignment, and patch publication.
+
+Minimum `SECURITY.md` content:
+
+- A link to the "Report a vulnerability" form at `https://github.com/<owner>/<repo>/security/advisories/new`
+- An explicit "do not file public issues" line
+- What to include in a report (repro, affected versions, impact)
+- Response-time expectations (acknowledgement and patch SLOs)
+- Scope (what is and isn't covered)
+
+Without this, researchers either file public issues (worst case) or never report at all.
+
 ## Static analysis with zizmor
 
 [`zizmor`](https://docs.zizmor.sh) is a static analyser for GitHub Actions workflows. It catches the issues described above plus dozens more (template injection, unpinned actions, dangerous triggers, missing `permissions:`, mutable reusable-workflow refs, secrets exposed to forks, and so on). Run it locally and in CI:
@@ -221,7 +350,7 @@ In CI, install via `astral-sh/setup-uv` (already SHA-pinned for the Python jobs)
 ```yaml
   zizmor:
     name: GitHub Actions security (zizmor)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -275,11 +404,15 @@ Dependabot understands SHA-pinned actions and will propose updates with both the
 | Control | How |
 |---|---|
 | Pin actions to SHAs | `uses: owner/action@<full-sha> # vX` |
+| Pin runner images | `runs-on: ubuntu-24.04`, never `ubuntu-latest` |
 | Least-privilege token | `permissions: contents: read` at workflow level |
 | Runtime egress control | `step-security/harden-runner` on every job |
 | Pin tool installs | `pip install tool==x.y.z`, not bare `pip install tool` |
 | Disable credential persistence | `with: persist-credentials: false` on every `actions/checkout` |
 | Cancel superseded runs | `concurrency: { group: ${{ github.workflow }}-${{ github.ref }}, cancel-in-progress: true }` |
+| Block vulnerable PR deps | `actions/dependency-review-action` as required check on PRs |
+| External posture scoring | `ossf/scorecard-action` weekly + on push to main, with badge |
+| Vulnerability disclosure | `SECURITY.md` + GitHub private vulnerability reporting enabled |
 | Static analysis | `zizmor` job in CI; SHA-pinned, `--min-severity=medium` |
 | Avoid `pull_request_target` | Use `pull_request` unless write access is explicitly needed |
 | Prevent expression injection | Pass untrusted values via `env:`, not `${{ }}` in `run:` |
