@@ -148,7 +148,7 @@ The lockfile provides a partial mitigation â€” it pins exact resolved versions â
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contribution guide: how to file issues, the local checks every PR must pass, the SHA-pinning conventions for actions, the licensing/REUSE requirements, and the per-ecosystem propagation checklist for new recommendations. For security vulnerabilities, see [SECURITY.md](SECURITY.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contribution guide: how to file issues, the local checks every PR must pass, the SHA-pinning conventions for actions, the licensing/REUSE requirements, and the per-ecosystem propagation checklist for new recommendations. For security vulnerabilities, see [SECURITY.md](SECURITY.md). For release history, see [CHANGELOG.md](CHANGELOG.md).
 
 ## Reference Links
 
