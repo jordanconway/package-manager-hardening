@@ -82,4 +82,4 @@ Two Scorecard checks are deliberately not satisfied for this repository, and the
 
 ## OpenSSF Best Practices Badge
 
-A Passing-tier self-certification at <https://www.bestpractices.dev/> is in progress. Once awarded, the badge will appear next to the Scorecard badge in [README.md](README.md). Scorecard's `CII-Best-Practices` check will report 0 until the badge is awarded; this is a known gap rather than a missing control.
+This project has earned the OpenSSF Best Practices **Passing** badge: <https://www.bestpractices.dev/projects/12822>. The badge is displayed in [README.md](README.md). Silver and Gold tiers are on the roadmap.

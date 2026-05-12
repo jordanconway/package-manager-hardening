@@ -68,7 +68,7 @@ Documented in [`SECURITY.md`](SECURITY.md):
 
 - Single-maintainer policy — Scorecard `Code-Review` check is intentionally not satisfied.
 - `Maintained` Scorecard check is time-based and will resolve once the repository is 90 days old.
-- OpenSSF Best Practices badge: `Passing` self-certification in progress.
+- OpenSSF Best Practices badge: **Passing** tier awarded (project 12822).
 
 [Unreleased]: https://github.com/jordanconway/package-manager-hardening/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/jordanconway/package-manager-hardening/releases/tag/v0.1.0
