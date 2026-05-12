@@ -90,26 +90,40 @@ Workflow steps that run `pip install <tool>`, `npm install -g <tool>`, or `npx <
 # Bad
 - run: pip install ruff
 
-# Good
+# Better — version-pinned, but not hash-verified
 - run: pip install ruff==0.11.2
+
+# Best — hash-verified install from a committed lockfile
+- run: pip install -r ci-requirements.txt   # generated with pip-compile --generate-hashes
 ```
 
-For a more robust setup, use a lockfile committed to the repo and install from it:
-
-```yaml
-- run: pip install -r ci-requirements.txt  # generated with pip-compile --generate-hashes
-```
-
-`npx --yes <package>` fetches and runs whatever is currently published under that name. Prefer a pinned local install:
+For npm-based tooling (e.g. `markdownlint-cli2`, `prettier`), commit a `package.json` + `package-lock.json` and use `npm ci --ignore-scripts`:
 
 ```yaml
 # Bad
 - run: npx --yes markdownlint-cli2 "**/*.md"
 
-# Better — installs a pinned version, then runs it
+# Better
 - run: |
-    npm install markdownlint-cli2@0.17.0
+    npm install markdownlint-cli2@0.22.1
     npx markdownlint-cli2 "**/*.md"
+
+# Best — hash-verified from package-lock.json; --ignore-scripts blocks install hooks
+- run: npm ci --ignore-scripts
+- run: npx markdownlint-cli2 "**/*.md"
+```
+
+The "best" form is what OpenSSF Scorecard's `Pinned-Dependencies` check looks for. Inline `npm install pkg@ver` and `pip install pkg==x.y.z` are version-pinned but not hash-verified, and Scorecard scores them lower than a lockfile-based install. `--ignore-scripts` (npm) is critical: a malicious transitive dep can otherwise execute arbitrary code during install via `preinstall` / `postinstall` hooks. The corresponding pip flag is `--no-build-isolation` + `--only-binary=:all:` where possible, or simply trusting `uv sync --frozen` which does not run arbitrary build code for wheels.
+
+Add the npm or pip ecosystem to `dependabot.yml` so the lockfile stays current:
+
+```yaml
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
 ```
 
 ## Don't use `pull_request_target` without careful review
@@ -407,7 +421,7 @@ Dependabot understands SHA-pinned actions and will propose updates with both the
 | Pin runner images | `runs-on: ubuntu-24.04`, never `ubuntu-latest` |
 | Least-privilege token | `permissions: contents: read` at workflow level |
 | Runtime egress control | `step-security/harden-runner` on every job |
-| Pin tool installs | `pip install tool==x.y.z`, not bare `pip install tool` |
+| Pin tool installs | `npm ci --ignore-scripts` from committed `package-lock.json`; `uv sync --frozen` from `uv.lock`; never bare `pip install tool` or `npx --yes` |
 | Disable credential persistence | `with: persist-credentials: false` on every `actions/checkout` |
 | Cancel superseded runs | `concurrency: { group: ${{ github.workflow }}-${{ github.ref }}, cancel-in-progress: true }` |
 | Block vulnerable PR deps | `actions/dependency-review-action` as required check on PRs |

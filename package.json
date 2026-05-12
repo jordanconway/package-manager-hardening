@@ -1,0 +1,9 @@
+{
+  "name": "package-manager-hardening-tooling",
+  "private": true,
+  "description": "Pinned npm tooling for CI (not published).",
+  "license": "MIT",
+  "devDependencies": {
+    "markdownlint-cli2": "0.22.1"
+  }
+}

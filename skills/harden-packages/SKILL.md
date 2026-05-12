@@ -677,6 +677,23 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
 - Is the workflow's `egress-policy` set to `audit` (not `block`)? Scorecard legitimately contacts deps.dev, OSV, npm, PyPI, etc. and cannot run under a fixed allowlist. Flag `block` here as ⚠️.
 - Is the Scorecard badge in the README so the score is publicly visible?
 - Note that a *dropping* Scorecard score is a regression to triage — not just a green/red flag at a point in time.
+- **Common Scorecard `Pinned-Dependencies` finding**: inline `npm install pkg@ver` and `pip install pkg==x.y.z` in workflow steps are version-pinned but not hash-verified, and Scorecard scores them ~9/10. The fix is to commit a lockfile and switch to `npm ci --ignore-scripts` / `uv sync --frozen --group dev`. Recommend this whenever you see inline tool installs in a workflow.
+
+### CI tool installs (npm / pip)
+
+- For every `run: npm install ...` or `run: pip install ...` in `.github/workflows/`, is there a corresponding committed lockfile?
+  - npm: `package.json` + `package-lock.json`, installed with `npm ci --ignore-scripts`. Flag inline `npm install pkg@ver` as ⚠️ and bare `npx --yes` as ❌.
+  - pip: tools declared in `pyproject.toml [dependency-groups]` and locked in `uv.lock`, installed with `uv sync --frozen --group dev`. Flag inline `pip install pkg==x.y.z` as ⚠️ and bare `pip install pkg` as ❌.
+- Is `npm ci` used (not `npm install`)? `npm install` can mutate the lockfile silently in CI. Flag bare `npm install` in CI as ❌.
+- Is `--ignore-scripts` set on the npm install? Without it, a malicious transitive dep can execute arbitrary code via `preinstall` / `postinstall` hooks during install. Flag missing `--ignore-scripts` as ⚠️.
+- Is the corresponding ecosystem (`npm`, `uv`, `pip`) present in `.github/dependabot.yml` with a cooldown? Otherwise the lockfile rots.
+- Are auto-generated lockfiles (`package-lock.json`, `uv.lock`) annotated in `REUSE.toml`? They cannot carry inline SPDX headers (would be stripped on regeneration).
+- When adding npm tooling to a repo for the first time, the full sequence is:
+  1. `package.json` (`private: true`, tool in `devDependencies` at exact version)
+  2. `npm install --package-lock-only --ignore-scripts` to generate `package-lock.json`
+  3. Add `npm` to `dependabot.yml`
+  4. Add both files to `REUSE.toml`
+  5. Switch the workflow step to `npm ci --ignore-scripts`
 
 ### SECURITY.md and private vulnerability reporting
 

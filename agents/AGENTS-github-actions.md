@@ -137,20 +137,38 @@ Start new jobs in `audit` mode and tighten to `block` once the allowlist is conf
 
 ## Tool Version Pinning
 
-Pin all tool installs in CI steps to exact versions. Do not use bare installs:
+All tools installed in workflow steps must be hash-verified from a committed lockfile, not just version-pinned inline. This is what OpenSSF Scorecard's `Pinned-Dependencies` check requires.
+
+- **Python**: `uv sync --frozen --group dev` from `uv.lock`. Tools declared in `pyproject.toml [dependency-groups].dev` so Dependabot's `uv` ecosystem keeps them current. Inline `pip install ruff==0.11.2` is acceptable only as a short-term transitional measure with a tracked follow-up; the lockfile form is required for new repos.
+- **npm**: `npm ci --ignore-scripts` from committed `package.json` + `package-lock.json`. Tools declared in `devDependencies` at exact versions so Dependabot's `npm` ecosystem keeps them current. Inline `npm install pkg@ver` is **not sufficient** for `Pinned-Dependencies` — it pins the direct version but not the integrity hash, and does not pin transitive deps. `--ignore-scripts` is mandatory: it blocks `preinstall` / `postinstall` hooks that are a primary supply-chain attack vector.
+- **`npx --yes <pkg>` is forbidden**: it fetches and runs whatever is currently published under that name, with no version or hash check at all.
 
 ```yaml
 # Correct
-- run: pip install ruff==0.11.2
-- run: pip install pytest==8.3.5
-- run: npm install markdownlint-cli2@0.17.2
+- run: uv sync --frozen --group dev
+- run: uv run ruff check .
 
-# Incorrect
+- run: npm ci --ignore-scripts
+- run: npx markdownlint-cli2 "**/*.md"
+
+# Incorrect (silently rots; not hash-verified; invisible to Dependabot)
 - run: pip install ruff
+- run: pip install ruff==0.11.2
+- run: npm install markdownlint-cli2@0.17.2
 - run: npx --yes markdownlint-cli2
 ```
 
-**Dependabot blind spot:** inline `pip install x==y` / `npm install x@y` lines in workflow files are pinned but **not parsed by Dependabot** — no ecosystem will open update PRs for them, and they silently rot. For tools used by CI, prefer declaring them in a manifest Dependabot understands (e.g. `pyproject.toml [dependency-groups]` for Python, `package.json` `devDependencies` for Node) and invoking via `uv run` / `npx` from the locked install. Inline pins are acceptable only as a short-term measure with a tracked follow-up.
+**Dependabot blind spot**: inline `pip install x==y` / `npm install x@y` lines in workflow files are pinned but **not parsed by Dependabot** — no ecosystem will open update PRs for them, and they silently rot. Always declare tools in a manifest Dependabot understands.
+
+When adding npm tooling to a repo that doesn't yet have it:
+
+1. Create a minimal `package.json` with `"private": true` and the tool in `devDependencies` at an exact version.
+2. Generate `package-lock.json` with `npm install --package-lock-only --ignore-scripts`.
+3. Add an `npm` ecosystem entry to `.github/dependabot.yml` with a cooldown.
+4. Annotate `package.json` and `package-lock.json` in `REUSE.toml` (both lack a comment syntax for inline SPDX headers).
+5. Use `npm ci --ignore-scripts` in the workflow step.
+
+Do not use `npm install` (without `ci`) in CI — it can mutate the lockfile silently. Always `npm ci`.
 
 ## Expression Injection
 

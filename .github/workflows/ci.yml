@@ -123,7 +123,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - run: npm install markdownlint-cli2@0.17.2
+      # Hash-verified install from committed package-lock.json
+      # (Scorecard: Pinned-Dependencies). --ignore-scripts blocks
+      # any package's lifecycle scripts from running during install.
+      - run: npm ci --ignore-scripts
       - run: npx markdownlint-cli2 "**/*.md"
 
   link-check:

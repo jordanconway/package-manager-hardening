@@ -19,6 +19,9 @@ config:
   # No duplicate headings — relaxed for large docs with repeated section names across files
   MD024: false
 
+  # Table column style — not enforced; existing tables use compact form intentionally
+  MD060: false
+
 globs:
   - "**/*.md"
 
