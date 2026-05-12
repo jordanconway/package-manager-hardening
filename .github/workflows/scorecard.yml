@@ -17,6 +17,7 @@ on:
     - cron: "37 5 * * 1"  # weekly, Monday 05:37 UTC
   push:
     branches: [main]
+  workflow_dispatch:  # allow manual `gh workflow run scorecard.yml`
 
 permissions: {}
 
