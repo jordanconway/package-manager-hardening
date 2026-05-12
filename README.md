@@ -77,7 +77,7 @@ cp -r skills/harden-packages ~/.claude/skills/
 |-----|--------|
 | [Dependabot](docs/dependabot.md) | Cooldown configuration per ecosystem, semver-level delay, known Terraform provider bug |
 | [Harden-Runner](docs/harden-runner.md) | Runtime CI egress control, audit → block mode, per-ecosystem `allowed-endpoints` |
-| [GitHub Actions](docs/github-actions.md) | SHA pinning, least-privilege permissions, expression injection, OIDC, CODEOWNERS |
+| [GitHub Actions](docs/github-actions.md) | SHA pinning, least-privilege permissions, expression injection, OIDC, CODEOWNERS, `persist-credentials: false`, workflow concurrency, zizmor static analysis |
 | [Container Images](docs/docker.md) | Base image digest pinning, official images, distroless, Docker Scout, Cosign, Dependabot |
 
 ### AI assistant tooling

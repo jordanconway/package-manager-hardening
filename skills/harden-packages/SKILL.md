@@ -5,10 +5,12 @@ description: >
   Use this skill whenever the user wants to: audit dependency security, check package
   manager hardening, apply supply chain security best practices, set up Dependabot
   cooldowns, configure Harden-Runner in GitHub Actions, pin dependency versions, add
-  lockfiles, configure minimum release age, check for unpinned dependencies, or
+  lockfiles, configure minimum release age, check for unpinned dependencies, run
+  zizmor static analysis on GitHub Actions workflows, or
   review CI/CD pipeline security. Also trigger when the user says things like "harden
   my repo", "check my dependencies", "is my package config secure?", "set up supply
-  chain security", "add Dependabot", or "are my packages safe?". Works across Node.js
+  chain security", "add Dependabot", "run zizmor", or "are my packages safe?". Works
+  across Node.js
   (npm/pnpm/yarn/bun), Python (pip/uv), Go, Rust/Cargo, PHP/Composer, Ruby/Bundler,
   JVM (Maven, Gradle — Java and Kotlin), and Terraform/OpenTofu repos
 ---
@@ -113,13 +115,16 @@ Example report structure:
 ### GitHub Actions
 ⚠️ ci.yml: harden-runner present but egress-policy is "audit", not "block"
 ❌ release.yml: harden-runner not present
+❌ No zizmor static analysis configured
+⚠️ actions/checkout in ci.yml does not set persist-credentials: false (zizmor: artipacked × 3)
 
 ### Priority fixes
 1. Add harden-runner to release.yml — release workflows are high-value targets
-2. Set egress-policy: block in ci.yml once allowlist is confirmed
-3. Add require-hashes = true under [tool.uv.pip] (defensive, for ad-hoc `uv pip install`)
-4. Add pip entry to dependabot.yml
-5. Set trustPolicy: no-downgrade in pnpm-workspace.yaml
+2. Add a zizmor job to CI; pin the version (`uvx zizmor==X.Y.Z`) and resolve current findings
+3. Set egress-policy: block in ci.yml once allowlist is confirmed
+4. Add require-hashes = true under [tool.uv.pip] (defensive, for ad-hoc `uv pip install`)
+5. Add pip entry to dependabot.yml
+6. Set trustPolicy: no-downgrade in pnpm-workspace.yaml
 ```
 
 ## Step 4: Offer to fix
@@ -505,6 +510,7 @@ Append the ecosystem-specific endpoints:
 - **Go stdlib CVEs**: standard library vulnerabilities cannot be fixed by bumping a `require` entry — they require upgrading the `go` directive in `go.mod` to the patched Go release. When govulncheck reports stdlib findings, check the "Fixed in" version and update the `go` directive accordingly.
 - **Go `go` directive format**: use the full patch version (`go 1.25.9`), not the bare minor (`go 1.25`) or base patch (`go 1.25.0`). `go mod tidy` preserves fully-specified patch versions but normalises `go 1.25` → `go 1.25.0`. govulncheck reads the `go` directive as the stdlib CVE baseline — `go 1.25.0` will surface all CVEs fixed in 1.25.1 through the latest patch. Do **not** split a patch-versioned `go` directive into `go 1.25` + `toolchain go1.25.9` on the assumption that the toolchain directive covers CVE exposure — it does not; only the `go` directive does.
 - **Reusable workflow pinning**: job-level `uses:` entries that delegate to a reusable workflow (e.g., SLSA generators, shared org workflows) are mutable refs and must be SHA-pinned, just like step-level actions. They cannot receive harden-runner steps, so flag them separately.
+- **zizmor in CI**: if the user wants to harden a GitHub Actions setup, recommend adding a `zizmor` job alongside Harden-Runner. They are complementary — Harden-Runner is runtime egress control, zizmor is static analysis of the workflow file itself. Pin the zizmor version (`uvx zizmor==X.Y.Z`) and run at `--min-severity=medium` (default persona) or `--persona=auditor --min-severity=low` (stricter).
 
 ---
 
@@ -614,3 +620,19 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
 - Is `step-security/harden-runner` (SHA-pinned, e.g. `@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2`) the first step in every job that installs dependencies? Flag any `@v2` / `@v3` / `@main` references — actions must be SHA-pinned to a 40-char commit, with a `# vX.Y.Z` trailing comment.
 - Is `egress-policy` set to `block` (not `audit`)? Is `disable-sudo: true` set?
 - Are job-level `uses:` entries (reusable workflows) SHA-pinned? These are mutable refs just like step-level `uses:` but **cannot receive harden-runner steps** — the entire job is delegated to the reusable workflow. Flag unpinned reusable workflow refs separately from the harden-runner audit.
+
+### Workflow static analysis (zizmor)
+
+[`zizmor`](https://docs.zizmor.sh) is the canonical static analyser for GitHub Actions workflows. It catches issues the file-based checks above can't reach — template injection, missing `persist-credentials: false`, missing workflow `concurrency:`, dangerous triggers (`pull_request_target` with checkout-of-head), secrets exposed to forks, mutable reusable-workflow refs, etc.
+
+- Is there a `zizmor` job in CI? Flag as ❌ if missing.
+- Is the zizmor version pinned (e.g. `uvx zizmor==1.24.1`)? Flag bare `uvx zizmor` as ⚠️.
+- Is `--min-severity` set to at least `medium` (default) or `low` (preferred, with `--persona=auditor`)?
+- When recommending or adding zizmor, run it locally first: `uvx zizmor --persona=auditor .`. Report each finding and offer to fix; do not auto-suppress findings.
+- Common findings to know:
+  - **`artipacked`** (medium): `actions/checkout` missing `persist-credentials: false`. Fix on every checkout unless the job pushes to git.
+  - **`template-injection`** (high/medium): `${{ ... }}` interpolated into a `run:` block. Fix by passing the value through `env:` and quoting `"$VAR"` in the shell.
+  - **`concurrency-limits`** (low): no workflow-level `concurrency:` block. Add one keyed on `${{ github.workflow }}-${{ github.ref }}` with `cancel-in-progress: true` for CI; `false` for release/deploy workflows.
+  - **`dangerous-triggers`** (high): `pull_request_target` combined with a checkout of `github.event.pull_request.head.ref`. Requires immediate human review.
+  - **`unpinned-uses`** (high): action referenced by tag (`@v4`) instead of SHA. Already covered by the harden-runner / SHA-pinning checks above, but zizmor will surface it again.
+  - **`excessive-permissions`** (medium): workflow or job missing `permissions:` declaration, or granting more than `contents: read` without justification.

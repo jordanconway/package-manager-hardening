@@ -178,6 +178,77 @@ Workflow files define what runs in CI and have access to all repository secrets.
 
 Without CODEOWNERS, a contributor with write access to a branch can add a malicious step to a workflow and merge it without additional review.
 
+## Disable credential persistence in checkouts
+
+By default, `actions/checkout` writes the `GITHUB_TOKEN` into `.git/config` after fetching, so subsequent steps in the same job can `git push` or otherwise use the token. Any compromised dependency build, lint plugin, or post-install script in a later step can then exfiltrate or abuse it. Unless the job genuinely needs to push back to the repo (release tagging, automated commits), set `persist-credentials: false` on every checkout:
+
+```yaml
+# Default — token is left in .git/config for the rest of the job
+- uses: actions/checkout@<sha> # v4
+
+# Safe — token is wiped after the fetch completes
+- uses: actions/checkout@<sha> # v4
+  with:
+    persist-credentials: false
+```
+
+This is one of zizmor's most common findings (`artipacked`).
+
+## Cancel superseded runs (concurrency)
+
+Without a workflow-level `concurrency:` block, rapid pushes to the same PR or branch stack overlapping runs. They burn Actions minutes, can create races between deploy jobs, and amplify the blast radius of a compromised dependency (more concurrent runs = more secret-bearing processes alive at once). Add:
+
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+```
+
+For release / deploy workflows where in-flight runs should complete, set `cancel-in-progress: false` instead, but always set the `group`.
+
+## Static analysis with zizmor
+
+[`zizmor`](https://docs.zizmor.sh) is a static analyser for GitHub Actions workflows. It catches the issues described above plus dozens more (template injection, unpinned actions, dangerous triggers, missing `permissions:`, mutable reusable-workflow refs, secrets exposed to forks, and so on). Run it locally and in CI:
+
+```bash
+# Local
+uvx zizmor .                              # default persona, medium+ findings
+uvx zizmor --persona=auditor .            # adds informational + low findings
+```
+
+In CI, install via `astral-sh/setup-uv` (already SHA-pinned for the Python jobs) and pin the zizmor version:
+
+```yaml
+  zizmor:
+    name: GitHub Actions security (zizmor)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@<sha> # v2
+        with:
+          egress-policy: block
+          disable-sudo: true
+          allowed-endpoints: >
+            api.github.com:443
+            github.com:443
+            objects.githubusercontent.com:443
+            pypi.org:443
+            files.pythonhosted.org:443
+            astral.sh:443
+            release-assets.githubusercontent.com:443
+            raw.githubusercontent.com:443
+      - uses: actions/checkout@<sha> # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@<sha> # v8.x
+        with:
+          version: "0.11.11"
+      - run: uvx zizmor==1.24.1 --min-severity=medium .
+```
+
+Move the zizmor pin into `pyproject.toml [dependency-groups].dev` if you want Dependabot's `uv` ecosystem to keep it current automatically. `--min-severity=medium` mirrors the default persona's threshold; raise to `--persona=auditor --min-severity=low` for a stricter gate.
+
 ## Dependabot for action updates
 
 Configure Dependabot to keep action SHAs and version comments current:
@@ -207,6 +278,9 @@ Dependabot understands SHA-pinned actions and will propose updates with both the
 | Least-privilege token | `permissions: contents: read` at workflow level |
 | Runtime egress control | `step-security/harden-runner` on every job |
 | Pin tool installs | `pip install tool==x.y.z`, not bare `pip install tool` |
+| Disable credential persistence | `with: persist-credentials: false` on every `actions/checkout` |
+| Cancel superseded runs | `concurrency: { group: ${{ github.workflow }}-${{ github.ref }}, cancel-in-progress: true }` |
+| Static analysis | `zizmor` job in CI; SHA-pinned, `--min-severity=medium` |
 | Avoid `pull_request_target` | Use `pull_request` unless write access is explicitly needed |
 | Prevent expression injection | Pass untrusted values via `env:`, not `${{ }}` in `run:` |
 | OIDC for cloud auth | `id-token: write` + federated identity; no long-lived keys |
