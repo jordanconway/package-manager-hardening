@@ -689,7 +689,7 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
       "dismiss_stale_reviews": true,              // no-op until reviews required; tick the box
       "require_code_owner_reviews": false,        // MUST be false on solo — GitHub forbids self-approval
       "required_approving_review_count": 0,       // require PR flow but not an approver
-      "require_last_push_approval": true          // no-op until reviews required; tick the box
+      "require_last_push_approval": false         // MUST be false on solo — even with count=0 this requires an approval after each push and blocks self-merge
     },
     "restrictions": null,
     "required_linear_history": true,
@@ -699,7 +699,8 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
   }
   ```
 
-  The trick is `required_approving_review_count: 0`. It satisfies Scorecard's "PRs are required" check, lets `dismiss_stale_reviews` and `require_last_push_approval` tick their boxes, but doesn't require an approver — so self-merge with `gh pr merge --auto --squash` still works on a solo repo. **Do not** set `require_code_owner_reviews: true` on a solo project; it will block every merge because GitHub forbids approving your own PR. The remaining warning (`codeowners review not required`) is a known-acceptable trade-off; document it in `SECURITY.md` alongside the `Code-Review` and `Maintained` trade-offs.
+  The trick is `required_approving_review_count: 0`. It satisfies Scorecard's "PRs are required" check and lets `dismiss_stale_reviews` tick its box, while keeping self-merge with `gh pr merge --auto --squash` working on a solo repo. **Do not** set `require_code_owner_reviews: true` or `require_last_push_approval: true` on a solo project — both will block every merge (codeowners: GitHub forbids approving your own PR; last-push-approval: even at count=0, GitHub still requires an approval after the most recent push, which the pusher can't provide). The remaining Scorecard warnings (`codeowners review not required`, `last push approval is disabled`) are known-acceptable trade-offs; document them in `SECURITY.md` alongside the `Code-Review` and `Maintained` trade-offs. They auto-flip to `true` the moment a second maintainer is added.
+- Also: enable `allow_auto_merge` at the repo level (`gh api -X PATCH repos/<owner>/<repo> -f allow_auto_merge=true`) so `gh pr merge --auto --squash --delete-branch` works — without it you get `GraphQL: Auto merge is not allowed for this repository`.
 - Note that a *dropping* Scorecard score is a regression to triage — not just a green/red flag at a point in time.
 - **Common Scorecard `Pinned-Dependencies` finding**: inline `npm install pkg@ver` and `pip install pkg==x.y.z` in workflow steps are version-pinned but not hash-verified, and Scorecard scores them ~9/10. The fix is to commit a lockfile and switch to `npm ci --ignore-scripts` / `uv sync --frozen --group dev`. Recommend this whenever you see inline tool installs in a workflow.
 
