@@ -660,6 +660,14 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
 - Is there a `deny-licenses` list appropriate to the project's own license? At minimum, MIT/Apache projects should deny GPL/AGPL.
 - Is `comment-summary-in-pr: on-failure` set so contributors see why the check failed?
 - Is the job a required status check on `main`? If not, the gate can be merged around.
+- **Gotcha**: the action requires Dependabot security updates to be enabled on the repo (not just the always-on dependency graph). Without it, the job fails with `Dependency review is not supported on this repository. Please ensure that Dependency graph is enabled`. Enable it with:
+
+  ```bash
+  gh api -X PATCH repos/<owner>/<repo> \
+    -f 'security_and_analysis[dependabot_security_updates][status]=enabled'
+  ```
+
+  Verify with `gh api repos/<owner>/<repo> --jq '.security_and_analysis.dependabot_security_updates.status'` — should return `enabled`. This is free for public repos and included with GitHub Advanced Security for private repos. Add this to the fix plan whenever you recommend `dependency-review-action`, and re-run any failed job after flipping the setting.
 
 ### OpenSSF Scorecard
 

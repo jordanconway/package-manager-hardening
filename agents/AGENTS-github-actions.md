@@ -56,6 +56,8 @@ Every repository must run `actions/dependency-review-action` as a PR-only requir
 
 Do not lower `fail-on-severity` below `high` without explicit human approval. Do not delete the job or remove its required-check status without explicit human approval.
 
+The action requires Dependabot security updates to be enabled on the repo (Settings → Code security, or `gh api -X PATCH repos/<owner>/<repo> -f 'security_and_analysis[dependabot_security_updates][status]=enabled'`). Without it, every run fails with `Dependency review is not supported on this repository`. When adding the job to a repo that doesn't already have it enabled, enable the setting in the same change.
+
 ## OpenSSF Scorecard
 
 Every repository must publish an OpenSSF Scorecard score via `ossf/scorecard-action`, run on a weekly schedule and on push to `main`. SARIF results upload to the Security tab; results publish to the OpenSSF API so the README badge resolves.

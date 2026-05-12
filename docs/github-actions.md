@@ -259,6 +259,15 @@ It's PR-only, free, and requires no infrastructure. It also writes a summary com
 
 Make the job a required status check on `main` so it cannot be merged around. Tune `fail-on-severity` (`critical | high | moderate | low`) to your project's risk tolerance.
 
+**Prerequisite**: `dependency-review-action` requires Dependabot security updates to be enabled on the repo (not just the always-on dependency graph). Without it, every run fails with `Dependency review is not supported on this repository. Please ensure that Dependency graph is enabled`. Enable via Settings → Code security → "Dependabot security updates", or:
+
+```bash
+gh api -X PATCH repos/<owner>/<repo> \
+  -f 'security_and_analysis[dependabot_security_updates][status]=enabled'
+```
+
+This is free for public repos and included with GitHub Advanced Security for private repos.
+
 ## OpenSSF Scorecard
 
 [OpenSSF Scorecard](https://github.com/ossf/scorecard) automatically scores a repository against ~20 supply-chain best practices (branch protection, signed releases, pinned dependencies, token permissions, fuzzing, vulnerability response, etc.) and uploads results as SARIF to the Security tab. The score is the de-facto external benchmark and a Scorecard badge is now common on hardened OSS projects.
