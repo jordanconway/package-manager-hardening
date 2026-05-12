@@ -42,6 +42,32 @@ New or modified workflows must pass `uvx zizmor --persona=auditor .` locally bef
 
 Do not downgrade the `--min-severity` threshold or remove the zizmor job from CI without explicit human approval.
 
+## Pin runner images
+
+`runs-on: ubuntu-latest` is mutable and changes underneath you. Always pin to a specific image (`ubuntu-24.04`, `ubuntu-22.04`, `windows-2022`, `macos-14`). Bump explicitly when you've validated the new image. Dependabot does not propose runner-image bumps; track these manually.
+
+## Block vulnerable / disallowed dependencies on PRs
+
+Every repository must run `actions/dependency-review-action` as a PR-only required status check. It compares head against base and fails on:
+
+- Vulnerabilities at or above `fail-on-severity: high` (or stricter)
+- Licenses on the `deny-licenses` list (project-specific)
+- Packages on the `deny-packages` list, if any
+
+Do not lower `fail-on-severity` below `high` without explicit human approval. Do not delete the job or remove its required-check status without explicit human approval.
+
+## OpenSSF Scorecard
+
+Every repository must publish an OpenSSF Scorecard score via `ossf/scorecard-action`, run on a weekly schedule and on push to `main`. SARIF results upload to the Security tab; results publish to the OpenSSF API so the README badge resolves.
+
+The Scorecard workflow uses `egress-policy: audit`, not `block` — the analyser legitimately contacts dozens of ecosystem endpoints. Do not change to `block`.
+
+A dropping Scorecard score is a regression that must be triaged like any other CI failure. Common causes: a new unpinned action, a removed branch protection rule, a permission grant added without justification.
+
+## Vulnerability disclosure: SECURITY.md
+
+Every repository must have a root `SECURITY.md` linking to GitHub's private vulnerability reporting (`https://github.com/<owner>/<repo>/security/advisories/new`), with explicit "do not file public issues" wording, expected response SLOs, and scope. Private vulnerability reporting must be enabled in repo Settings → Code security → "Privately report a vulnerability".
+
 ## Action Version Pinning
 
 **Always pin actions to their full commit SHA**, not to a version tag. Include the human-readable tag as a comment on the same line:
@@ -158,3 +184,7 @@ The following changes must not be made autonomously and require explicit human a
 - Setting `persist-credentials: true` (or omitting it, which defaults to `true`) on `actions/checkout`
 - Removing or weakening the workflow-level `concurrency:` block
 - Removing the zizmor job, lowering its `--min-severity`, or suppressing a finding without a documented justification
+- Removing the dependency-review job, lowering its `fail-on-severity`, or removing it from required status checks
+- Removing the Scorecard workflow, or changing its `egress-policy` away from `audit`
+- Bumping a runner image (`ubuntu-24.04` → `ubuntu-26.04`, etc.) without confirming the matrix still passes
+- Removing or weakening `SECURITY.md` or disabling private vulnerability reporting

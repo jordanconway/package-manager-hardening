@@ -6,6 +6,9 @@ SPDX-License-Identifier: MIT
 
 # Package Manager Security Hardening
 
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/jordanconway/package-manager-hardening/badge)](https://scorecard.dev/viewer/?uri=github.com/jordanconway/package-manager-hardening)
+[![REUSE status](https://api.reuse.software/badge/github.com/jordanconway/package-manager-hardening)](https://api.reuse.software/info/github.com/jordanconway/package-manager-hardening)
+
 A reference for hardening software supply chains across npm, pnpm, Yarn, Bun, pip, uv, Go modules, Cargo, Maven, Gradle, Terraform, and OpenTofu.
 
 Supply chain attacks typically succeed through one of a small number of vectors: a loose version constraint allows a newly published malicious version to be silently pulled in; a missing or unenforced lockfile lets an attacker's package substitute for a legitimate one; a compromised maintainer account publishes a backdoored patch release that lands in CI within minutes of publication; or a package's postinstall script runs arbitrary code during a routine `npm install`. This repository addresses all of these through a layered set of controls applied consistently across ecosystems.
@@ -77,7 +80,7 @@ cp -r skills/harden-packages ~/.claude/skills/
 |-----|--------|
 | [Dependabot](docs/dependabot.md) | Cooldown configuration per ecosystem, semver-level delay, known Terraform provider bug |
 | [Harden-Runner](docs/harden-runner.md) | Runtime CI egress control, audit → block mode, per-ecosystem `allowed-endpoints` |
-| [GitHub Actions](docs/github-actions.md) | SHA pinning, least-privilege permissions, expression injection, OIDC, CODEOWNERS, `persist-credentials: false`, workflow concurrency, zizmor static analysis |
+| [GitHub Actions](docs/github-actions.md) | SHA pinning, runner image pinning, least-privilege permissions, expression injection, OIDC, CODEOWNERS, `persist-credentials: false`, workflow concurrency, zizmor static analysis, dependency-review on PRs, OpenSSF Scorecard, `SECURITY.md` + private vulnerability reporting |
 | [Container Images](docs/docker.md) | Base image digest pinning, official images, distroless, Docker Scout, Cosign, Dependabot |
 
 ### AI assistant tooling
