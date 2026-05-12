@@ -12,7 +12,7 @@ requires-python = ">=3.10"
 dev = [
     "ruff==0.15.12",
     "pytest==9.0.3",
-    "hypothesis==6.131.0",
+    "hypothesis==6.152.4",
 ]
 
 [tool.uv]
