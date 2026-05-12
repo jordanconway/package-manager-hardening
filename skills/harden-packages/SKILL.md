@@ -677,6 +677,29 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
 - Is the workflow's `egress-policy` set to `audit` (not `block`)? Scorecard legitimately contacts deps.dev, OSV, npm, PyPI, etc. and cannot run under a fixed allowlist. Flag `block` here as ⚠️.
 - Is the Scorecard badge in the README so the score is publicly visible?
 - Is `repo_token: ${{ secrets.SCORECARD_TOKEN }}` set on the action step? Without it, the `Branch-Protection` check fails the entire run with `some github tokens can't read classic branch protection rules`. The token must be a fine-grained PAT with **only** `Administration: Read-only` on the target repo (no other scopes). Flag absence as ❌ if branch protection is configured; ⚠️ otherwise.
+- Is `workflow_dispatch:` set on the `on:` triggers? Without it `gh workflow run scorecard.yml` errors with HTTP 422. Recommend adding it to any scheduled workflow so manual re-runs work without pushing empty commits. (Re-running a *historical* run via the UI uses that commit's workflow YAML and ignores the current `main` version — so old failures stay failed forever; that's expected, not a bug.)
+- Is branch protection itself configured to score well on Scorecard's `Branch-Protection` check? On **solo / no-reviewer projects** there's a non-obvious config that ticks five Scorecard warnings without blocking self-merge:
+
+  ```jsonc
+  // gh api -X PUT repos/<owner>/<repo>/branches/main/protection --input -
+  {
+    "required_status_checks": { "strict": true, "contexts": ["..."] },
+    "enforce_admins": true,                       // protect against your own mistakes too
+    "required_pull_request_reviews": {
+      "dismiss_stale_reviews": true,              // no-op until reviews required; tick the box
+      "require_code_owner_reviews": false,        // MUST be false on solo — GitHub forbids self-approval
+      "required_approving_review_count": 0,       // require PR flow but not an approver
+      "require_last_push_approval": true          // no-op until reviews required; tick the box
+    },
+    "restrictions": null,
+    "required_linear_history": true,
+    "allow_force_pushes": false,
+    "allow_deletions": false,
+    "required_conversation_resolution": true
+  }
+  ```
+
+  The trick is `required_approving_review_count: 0`. It satisfies Scorecard's "PRs are required" check, lets `dismiss_stale_reviews` and `require_last_push_approval` tick their boxes, but doesn't require an approver — so self-merge with `gh pr merge --auto --squash` still works on a solo repo. **Do not** set `require_code_owner_reviews: true` on a solo project; it will block every merge because GitHub forbids approving your own PR. The remaining warning (`codeowners review not required`) is a known-acceptable trade-off; document it in `SECURITY.md` alongside the `Code-Review` and `Maintained` trade-offs.
 - Note that a *dropping* Scorecard score is a regression to triage — not just a green/red flag at a point in time.
 - **Common Scorecard `Pinned-Dependencies` finding**: inline `npm install pkg@ver` and `pip install pkg==x.y.z` in workflow steps are version-pinned but not hash-verified, and Scorecard scores them ~9/10. The fix is to commit a lockfile and switch to `npm ci --ignore-scripts` / `uv sync --frozen --group dev`. Recommend this whenever you see inline tool installs in a workflow.
 

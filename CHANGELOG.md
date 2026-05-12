@@ -12,6 +12,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- Branch protection on `main` tightened to maximise Scorecard's `Branch-Protection` check score on a solo project:
+  - `enforce_admins: true` — owner is subject to the same rules (was `false`)
+  - `required_pull_request_reviews` set with `required_approving_review_count: 0` — PR flow is now required (no direct push to `main`) but no approver is required (GitHub forbids self-approval; requiring one would block every merge)
+  - `dismiss_stale_reviews: true`, `require_last_push_approval: true` — no-ops at count=0 but tick Scorecard boxes and auto-tighten when a second maintainer joins
+  - `require_code_owner_reviews: false` — explicitly kept off; would block all merges on a solo project. Documented as a known-acceptable trade-off in `SECURITY.md`.
+  - `required_conversation_resolution: true`, `required_linear_history: true` — unchanged from before but explicitly tracked.
+  - Self-merge with `gh pr merge --auto --squash --delete-branch` continues to work; verified by merging PR #27.
+- Pattern documented in `skills/harden-packages/SKILL.md` ("OpenSSF Scorecard" audit checklist) as the recommended solo-project branch protection config.
+- `SECURITY.md`: expanded the `Code-Review` known trade-off to cover the new config and added a `Branch-Protection — codeowners review not required` sub-entry.
+
 ### Added
 
 - Coverage-guided fuzz harnesses in [`fuzz/`](fuzz/) using Atheris (libFuzzer for Python). Two harnesses cover every parser and helper. Hash-pinned in [`fuzz/requirements.txt`](fuzz/requirements.txt) and [`fuzz/requirements.in`](fuzz/requirements.in). Documented in [`fuzz/README.md`](fuzz/README.md).
