@@ -22,7 +22,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   - `required_conversation_resolution: true`, `required_linear_history: true` — unchanged from before but explicitly tracked.
   - Self-merge with `gh pr merge --auto --squash --delete-branch` continues to work; verified by merging PR #27.
 - Pattern documented in `skills/harden-packages/SKILL.md` ("OpenSSF Scorecard" audit checklist) as the recommended solo-project branch protection config.
-- `SECURITY.md`: expanded the `Code-Review` known trade-off to cover the new config and added a `Branch-Protection — codeowners review not required` sub-entry.
+- `SECURITY.md`: expanded the `Code-Review` known trade-off; added `Branch-Protection — codeowners review not required` and `Branch-Protection — last push approval is disabled` sub-entries.
+- Repo setting `allow_auto_merge` flipped to `true` so `gh pr merge --auto --squash --delete-branch` works (otherwise GraphQL refuses with `Auto merge is not allowed for this repository`).
 
 ### Added
 
