@@ -67,6 +67,8 @@ Add ecosystem-specific endpoints as needed (e.g. `pypi.org:443 files.pythonhoste
 
 For any action that downloads a binary from a GitHub release (e.g. `astral-sh/setup-uv`, `opentofu/setup-opentofu`), also allow `release-assets.githubusercontent.com:443` — modern GitHub release downloads redirect through that host. The older `github-production-release-asset-2e65be.s3.amazonaws.com` is deprecated and will fail with `ECONNREFUSED` in `block` mode.
 
+Some actions also fetch a runtime version manifest from `raw.githubusercontent.com`. Notable case: `astral-sh/setup-uv` **v8+** reads `https://raw.githubusercontent.com/astral-sh/versions/main/v1/uv.ndjson` on every run; v6.x did not. A Dependabot bump that crosses this boundary will fail in `block` mode until `raw.githubusercontent.com:443` is added. Always re-validate the allowlist when an action crosses a major version.
+
 **Exception:** jobs that fetch arbitrary external URLs (link checkers, scanners) must use `egress-policy: audit` since a fixed allowlist cannot be constructed. Add a comment explaining why.
 
 Start new jobs in `audit` mode and tighten to `block` once the allowlist is confirmed from the audit logs.

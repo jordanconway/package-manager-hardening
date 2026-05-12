@@ -486,7 +486,7 @@ terraform providers lock \
 Append the ecosystem-specific endpoints:
 
 - Node.js: `registry.npmjs.org:443` (add `npm.pkg.github.com:443` if GitHub Packages used)
-- Python: `pypi.org:443 files.pythonhosted.org:443` (add `astral.sh:443 release-assets.githubusercontent.com:443` if `astral-sh/setup-uv` is used — it downloads the uv binary from GitHub releases, which redirect to `release-assets.githubusercontent.com`, **not** the older `github-production-release-asset-2e65be.s3.amazonaws.com`)
+- Python: `pypi.org:443 files.pythonhosted.org:443` (add `astral.sh:443 release-assets.githubusercontent.com:443 raw.githubusercontent.com:443` if `astral-sh/setup-uv` is used — it downloads the uv binary from GitHub releases (which redirect to `release-assets.githubusercontent.com`, **not** the older `github-production-release-asset-2e65be.s3.amazonaws.com`), and on **v8+** also fetches its version manifest from `raw.githubusercontent.com/astral-sh/versions`. v6.x baked the manifest into the action and did not need `raw.githubusercontent.com`.)
 - Go: `proxy.golang.org:443 sum.golang.org:443 storage.googleapis.com:443`
 - Rust: `crates.io:443 index.crates.io:443 static.crates.io:443`
 - PHP: `packagist.org:443 repo.packagist.org:443`

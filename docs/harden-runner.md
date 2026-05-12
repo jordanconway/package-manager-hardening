@@ -60,9 +60,12 @@ If the workflow uses `astral-sh/setup-uv` (or any action that downloads a binary
 ```yaml
       astral.sh:443
       release-assets.githubusercontent.com:443
+      raw.githubusercontent.com:443
 ```
 
-GitHub release downloads now redirect through `release-assets.githubusercontent.com`. Older allowlists may reference `github-production-release-asset-2e65be.s3.amazonaws.com` — that host is deprecated for new release downloads and will fail with `ECONNREFUSED` in `block` mode.
+`release-assets.githubusercontent.com` is the modern GitHub release-asset CDN. Older allowlists may reference `github-production-release-asset-2e65be.s3.amazonaws.com` — that host is deprecated for new release downloads and will fail with `ECONNREFUSED` in `block` mode.
+
+`raw.githubusercontent.com` is required for `astral-sh/setup-uv` **v8+** specifically: v8 refactored version resolution to fetch `https://raw.githubusercontent.com/astral-sh/versions/main/v1/uv.ndjson` at runtime. v6.x baked the manifest into the action and did not need this endpoint, so workflows upgrading from v6 to v8 will fail until the endpoint is added.
 
 **Go:**
 

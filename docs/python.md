@@ -272,9 +272,13 @@ allowed-endpoints: >
   files.pythonhosted.org:443
   astral.sh:443
   release-assets.githubusercontent.com:443
+  raw.githubusercontent.com:443
 ```
 
-Note: GitHub release downloads now redirect through `release-assets.githubusercontent.com`. Older guides that list `github-production-release-asset-2e65be.s3.amazonaws.com` are out of date.
+Notes:
+
+- GitHub release downloads now redirect through `release-assets.githubusercontent.com`. Older guides that list `github-production-release-asset-2e65be.s3.amazonaws.com` are out of date.
+- `raw.githubusercontent.com` is needed by `astral-sh/setup-uv` **v8+** only: v8 fetches its version manifest from `https://raw.githubusercontent.com/astral-sh/versions/main/v1/uv.ndjson`. v6.x baked the manifest into the action; workflows upgrading from v6 to v8 will fail until this endpoint is added.
 
 Audit dependencies separately:
 
