@@ -45,16 +45,17 @@ Every repository must run CodeQL on every push, every PR to the default branch, 
 
 ## Fuzzing
 
-Every repository with parser-style code (anything that consumes external file content, network input, or user-controlled strings) must have a fuzzing integration. This satisfies Scorecard's `Fuzzing` check and catches a class of bugs unit tests routinely miss.
+Every repository with parser-style code (anything that consumes external file content, network input, or user-controlled strings) must have a fuzzing integration recognised by [OpenSSF Scorecard's `Fuzzing` check](https://github.com/ossf/scorecard/blob/main/docs/checks.md#fuzzing). The detection is narrow and language-specific. **Hypothesis is not recognised for Python** — do not add only Hypothesis and assume the check is satisfied.
 
 Minimum viable per language:
 
-- **Python** — `hypothesis` property-based tests in `tests/`. Pin in `pyproject.toml [dependency-groups].dev` so it's hash-verified via the lockfile.
-- **Go** — `go test -fuzz` targets (`func FuzzXxx(f *testing.F)`); run as part of CI.
+- **Python** — `import atheris` in a `fuzz/` harness, hash-pinned in `fuzz/requirements.txt`. Atheris is coverage-guided libFuzzer; only ships wheels for Linux x86_64 + Python ≤ 3.11. Run on a scheduled workflow (weekly), not per-PR (too slow). Keep Hypothesis property tests in `tests/test_fuzz.py` alongside — different bug class, fast enough for PRs.
+- **Go** — `func FuzzXxx(f *testing.F)` targets; run as part of CI.
 - **Rust** — `cargo-fuzz` targets under `fuzz/`.
-- **C / C++** — ClusterFuzzLite or OSS-Fuzz integration.
+- **C / C++** — `LLVMFuzzerTestOneInput` harnesses, integrated via ClusterFuzzLite (`.clusterfuzzlite/Dockerfile`) or OSS-Fuzz.
+- **Cross-language** — ClusterFuzzLite is the most flexible answer; OSS-Fuzz is the most thorough; both are recognised regardless of language.
 
-The contract under test is usually "parser must not crash on arbitrary input." Property tests are not full fuzzing campaigns but Scorecard accepts them, and they catch ReDoS, encoding edge cases, and crash-on-empty-input bugs that unit tests miss.
+The contract under test is usually "parser must not crash on arbitrary input." Property tests are not full fuzzing campaigns but they catch ReDoS, encoding edge cases, and crash-on-empty-input bugs that unit tests miss.
 
 Do not remove the fuzzing target / dev-dep / test file without explicit human approval.
 
@@ -235,7 +236,7 @@ The following changes must not be made autonomously and require explicit human a
 - Removing the dependency-review job, lowering its `fail-on-severity`, or removing it from required status checks
 - Removing the Scorecard workflow, or changing its `egress-policy` away from `audit`
 - Removing the CodeQL workflow, narrowing its language matrix, or downgrading from `security-extended` to `security-and-quality`
-- Removing the fuzzing integration (`hypothesis` dev-dep + `tests/test_fuzz.py` for Python; equivalents for other languages)
+- Removing the fuzzing integration (Atheris harness in `fuzz/` for Python; `func Fuzz*` for Go; `cargo-fuzz` for Rust; `LLVMFuzzerTestOneInput` for C/C++; ClusterFuzzLite for any), or removing the Hypothesis property suite that complements it
 - Bumping a runner image (`ubuntu-24.04` → `ubuntu-26.04`, etc.) without confirming the matrix still passes
 - Removing or weakening `SECURITY.md` or disabling private vulnerability reporting
 - Dismissing a Scorecard / CodeQL finding without a documented justification in `SECURITY.md`

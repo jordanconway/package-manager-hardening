@@ -1,0 +1,96 @@
+# SPDX-FileCopyrightText: 2026 The Linux Foundation
+#
+# SPDX-License-Identifier: MIT
+
+# Coverage-guided fuzzing with Atheris.
+#
+# Runs each fuzz harness in fuzz/ for a fixed wall-clock budget. Atheris ships
+# pre-built wheels only for Linux x86_64 + Python 3.11, so the job pins to
+# ubuntu-24.04 + Python 3.11 specifically.
+#
+# This workflow is deliberately scheduled (weekly + manual), not gated on PRs:
+#   - PR runs use Hypothesis (tests/test_fuzz.py) which is fast and broad.
+#   - This run is slower, deeper, and finds the inputs property tests miss.
+#
+# Crashes upload as artifacts and fail the run.
+
+name: Fuzz
+
+on:
+  schedule:
+    - cron: "17 7 * * 1"  # weekly, Monday 07:17 UTC
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: "Per-harness fuzz budget in seconds"
+        required: false
+        default: "180"
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fuzz:
+    name: Atheris (${{ matrix.harness }})
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read  # checkout
+    strategy:
+      fail-fast: false
+      matrix:
+        harness:
+          - fuzz_audit_parsers
+          - fuzz_audit_helpers
+    steps:
+      - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        with:
+          egress-policy: block
+          disable-sudo: true
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            objects.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            files.pythonhosted.org:443
+            pypi.org:443
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: "3.11"  # atheris wheels only ship for <= 3.11
+
+      - name: Install Atheris
+        run: python -m pip install --require-hashes -r fuzz/requirements.txt
+
+      - name: Run ${{ matrix.harness }}
+        env:
+          # Indirect through an env var to avoid template-injection risk
+          # (zizmor: template-injection). Validated below.
+          DURATION_INPUT: ${{ github.event.inputs.duration || '180' }}
+          HARNESS: ${{ matrix.harness }}
+        run: |
+          # Reject anything that isn't a positive integer.
+          if ! [[ "$DURATION_INPUT" =~ ^[0-9]+$ ]]; then
+            echo "::error::duration must be a positive integer; got: $DURATION_INPUT" >&2
+            exit 1
+          fi
+          mkdir -p fuzz-artifacts
+          # -atheris_runs=0 lets it run forever; -max_total_time bounds it.
+          # -artifact_prefix puts crash inputs in a known directory.
+          python "fuzz/${HARNESS}.py" \
+            -atheris_runs=0 \
+            "-max_total_time=${DURATION_INPUT}" \
+            -artifact_prefix=fuzz-artifacts/
+
+      - if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: crash-${{ matrix.harness }}
+          path: fuzz-artifacts/
+          retention-days: 30
