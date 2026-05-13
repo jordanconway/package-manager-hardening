@@ -14,6 +14,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- OpenSSF Open Source Project Security (OSPS) Baseline badge added to the README. Self-assessment completed at <https://www.bestpractices.dev/projects/12822>: 23 controls Met, 2 N/A, 0 Unmet across the AC / BR / DO / GV / LE / QA / VM domains. The Baseline self-assessment is independent of the Best Practices Passing badge already held; both link to the same project (12822).
+
+### Added
+
 - [`fuzz/corpus/fuzz_audit_helpers/README.md`](fuzz/corpus/fuzz_audit_helpers/README.md) documenting every binary input in the corpus (currently one: `crash-find_value-no-group`, 4 bytes). Records hex bytes, base64, the bug each input triggered, the fix, and the unit-test regression that pins the same bytes in source. Satisfies OpenSSF Baseline `OSPS-QA-05.02` ("no unreviewable binary artifacts") for the corpus directory — the files have to stay raw bytes on disk for libFuzzer to replay them, but every byte is now documented and cross-referenced.
 - `fuzz/README.md`: pointer to the per-harness corpus READMEs and the requirement to document every new corpus entry with hex bytes + bug + fix + regression test.
 
