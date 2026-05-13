@@ -12,6 +12,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- [`fuzz/corpus/fuzz_audit_helpers/README.md`](fuzz/corpus/fuzz_audit_helpers/README.md) documenting every binary input in the corpus (currently one: `crash-find_value-no-group`, 4 bytes). Records hex bytes, base64, the bug each input triggered, the fix, and the unit-test regression that pins the same bytes in source. Satisfies OpenSSF Baseline `OSPS-QA-05.02` ("no unreviewable binary artifacts") for the corpus directory — the files have to stay raw bytes on disk for libFuzzer to replay them, but every byte is now documented and cross-referenced.
+- `fuzz/README.md`: pointer to the per-harness corpus READMEs and the requirement to document every new corpus entry with hex bytes + bug + fix + regression test.
+
 ### Changed
 
 - Branch protection on `main` tightened to maximise Scorecard's `Branch-Protection` check score on a solo project:
