@@ -58,4 +58,4 @@ The scheduled workflow [`.github/workflows/fuzz.yml`](../.github/workflows/fuzz.
 
 Every crash is a bug. The audit functions' contract is "must not raise on any input from a target repository's filesystem". If the input is something the audit function should reject explicitly (e.g. binary garbage in a YAML file), the function should detect and skip it cleanly, not crash.
 
-Fix the underlying defensive-parsing bug in `audit.py`, then add the crash input to the corpus (`fuzz/corpus/<harness>/`) so it's regression-tested forever.
+Fix the underlying defensive-parsing bug in `audit.py`, then add the crash input to the corpus (`fuzz/corpus/<harness>/`) so it's regression-tested forever. Document the new corpus file in the per-harness corpus README (e.g. [`fuzz/corpus/fuzz_audit_helpers/README.md`](corpus/fuzz_audit_helpers/README.md)) with hex bytes, the bug it triggered, the fix, and the unit-test regression — this keeps the binary input reviewable per OpenSSF Baseline `OSPS-QA-05.02`.
