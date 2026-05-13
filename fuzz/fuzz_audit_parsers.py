@@ -16,7 +16,7 @@ Each ecosystem audit function consumes one or more manifest / lockfile / workflo
 files in a directory. The harness writes random bytes to the file the audit
 function expects, runs the function, and asserts no unhandled exception is
 raised. Atheris's libFuzzer instrumentation evolves inputs toward unexplored
-branches \u2014 catches a different class of bug than the property-based suite in
+branches -- catches a different class of bug than the property-based suite in
 tests/test_fuzz.py (which is *not* recognised by OpenSSF Scorecard's Fuzzing
 check).
 """
