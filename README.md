@@ -8,6 +8,7 @@ SPDX-License-Identifier: MIT
 
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/jordanconway/package-manager-hardening/badge)](https://scorecard.dev/viewer/?uri=github.com/jordanconway/package-manager-hardening)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12822/badge)](https://www.bestpractices.dev/projects/12822)
+[![OpenSSF Baseline](https://www.bestpractices.dev/projects/12822/baseline)](https://www.bestpractices.dev/projects/12822)
 [![REUSE status](https://api.reuse.software/badge/github.com/jordanconway/package-manager-hardening)](https://api.reuse.software/info/github.com/jordanconway/package-manager-hardening)
 
 A reference for hardening software supply chains across npm, pnpm, Yarn, Bun, pip, uv, Go modules, Cargo, Maven, Gradle, Terraform, and OpenTofu.
