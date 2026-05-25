@@ -6,7 +6,7 @@
 name = "package-manager-hardening"
 version = "0.0.0"
 description = "Package manager hardening skill and tests"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.15"
 
 [dependency-groups]
 dev = [
