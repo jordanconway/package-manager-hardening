@@ -153,25 +153,60 @@ Example report structure:
 ⚠️ actions/checkout in ci.yml does not set persist-credentials: false (zizmor: artipacked × 3)
 ⚠️ ci.yml uses `runs-on: ubuntu-latest` (4 jobs) — should pin to `ubuntu-24.04`
 ❌ No `actions/dependency-review-action` job (PRs can introduce vulnerable deps unchecked)
-❌ No OpenSSF Scorecard workflow
+❌ No OpenSSF Scorecard workflow *(opt-in — requires fine-grained PAT + branch protection setup)*
 ❌ No `SECURITY.md` and private vulnerability reporting is disabled
+⚪ No OpenSSF Best Practices Passing badge *(opt-in — manual self-assessment at bestpractices.dev)*
+⚪ No OpenSSF OSPS Baseline badge *(opt-in — manual self-assessment at bestpractices.dev)*
 
-### Priority fixes
+### Priority fixes (default, hands-off — will be applied if you agree)
 1. Add harden-runner to release.yml — release workflows are high-value targets
 2. Add a zizmor job to CI; pin the version (`uvx zizmor==X.Y.Z`) and resolve current findings
 3. Add `actions/dependency-review-action` as a PR-only required check (fail-on-severity: high, license denylist)
-4. Add `ossf/scorecard-action` workflow (weekly + push to main) with SARIF upload + README badge
-5. Add `SECURITY.md` linking to private vulnerability reporting; enable PVR in repo Settings
-6. Pin runner images: `ubuntu-latest` → `ubuntu-24.04` across all jobs
-7. Set egress-policy: block in ci.yml once allowlist is confirmed
-8. Add require-hashes = true under [tool.uv.pip] (defensive, for ad-hoc `uv pip install`)
-9. Add pip entry to dependabot.yml
-10. Set trustPolicy: no-downgrade in pnpm-workspace.yaml
+4. Add `SECURITY.md` linking to private vulnerability reporting; enable PVR in repo Settings
+5. Pin runner images: `ubuntu-latest` → `ubuntu-24.04` across all jobs
+6. Set egress-policy: block in ci.yml once allowlist is confirmed
+7. Add require-hashes = true under [tool.uv.pip] (defensive, for ad-hoc `uv pip install`)
+8. Add pip entry to dependabot.yml
+9. Set trustPolicy: no-downgrade in pnpm-workspace.yaml
+
+### Opt-in (will *not* be applied unless you ask — see Step 5)
+- Add `ossf/scorecard-action` workflow + README badge (needs `SCORECARD_TOKEN` PAT, branch protection config, repo-admin actions). Say *"set up Scorecard"* or *"add OpenSSF badges"* to apply.
+- Register for the OpenSSF Best Practices Passing badge at <https://www.bestpractices.dev/> and add to README (manual self-assessment).
+- Complete the OpenSSF OSPS Baseline self-assessment at <https://www.bestpractices.dev/> and add the Baseline badge to README (manual self-assessment).
 ```
 
 ## Step 4: Offer to fix
 
 After the report, ask: "Would you like me to apply the fixes? I can handle all of them, or you can tell me which ones to skip."
+
+### Default profile: what gets auto-applied vs deferred
+
+The default fix flow is deliberately **hands-off for the user** — only changes that the agent can complete without a PAT, an external account, repo-admin actions, or out-of-band human input are applied. Everything else is reported as a finding but **deferred to Step 5** so the user opts in explicitly when they have the time and credentials to follow through.
+
+**Apply by default (hands-off):**
+
+- Lockfile / package-manager config (`pnpm-workspace.yaml`, `.npmrc`, `.yarnrc.yml`, `bunfig.toml`, `pyproject.toml [tool.uv]`, `.cargo/config.toml`, etc.)
+- `.github/dependabot.yml` ecosystem entries and cooldown blocks
+- `.github/workflows/*.yml`: harden-runner additions, runner image pinning, action SHA pinning, zizmor job, dependency-review-action job, CodeQL workflow, fuzz workflow
+- `SECURITY.md` content (the file itself; the PVR repo-setting flip is a separate gh api call that the agent runs only with user consent — see below)
+- Tightening obvious non-breaking config (e.g. `--ignore-scripts` on `npm ci`, `BUNDLE_FROZEN=true` in CI)
+
+**Defer to Step 5 (opt-in only — do *not* apply autonomously):**
+
+- `.github/workflows/scorecard.yml` (Scorecard workflow). Requires a fine-grained PAT `SCORECARD_TOKEN`, branch protection configured beforehand, and `allow_auto_merge` enabled at the repo level. Adding the workflow without these produces a permanently-red badge.
+- Any addition of OpenSSF badges to `README.md` (Scorecard, Best Practices Passing, OSPS Baseline). The Best Practices and Baseline badges depend on external self-assessment at <https://www.bestpractices.dev/> that the agent cannot perform.
+- Branch-protection mutations on the default branch (`gh api -X PUT repos/<owner>/<repo>/branches/<branch>/protection`). Admin-level repo change; can lock out the user if misconfigured.
+- Repo-setting flips that require admin (`allow_auto_merge`, `dependabot_security_updates`, `private-vulnerability-reporting`, secret creation). Surface them as findings and as `gh` commands the user can run, but do not execute autonomously unless the user explicitly says so.
+- Creating, rotating, or installing any token / secret (`gh secret set SCORECARD_TOKEN`, PAT generation instructions).
+
+**Flag for human review (apply only with explicit per-item approval):**
+
+- Tightening version constraints (`^`/`~`/`>=` → exact pins) in any production manifest. See per-ecosystem rules below.
+- Repository-source changes in Gradle (`mavenLocal()` / `jcenter()` removal, `RepositoriesMode.FAIL_ON_PROJECT_REPOS`).
+
+If the user later says *"apply everything including badges"*, *"set up Scorecard"*, *"add OpenSSF badges"*, *"do the badging"*, or any equivalent, jump to [Step 5](#step-5-opt-in-openssf-badging-and-scorecard-setup).
+
+### Default fix order
 
 If the user agrees (fully or partially), apply the fixes in this order — lower risk / non-breaking changes first:
 
@@ -553,8 +588,57 @@ Append the ecosystem-specific endpoints:
 - **Go `go` directive format**: use the full patch version (`go 1.25.9`), not the bare minor (`go 1.25`) or base patch (`go 1.25.0`). `go mod tidy` preserves fully-specified patch versions but normalises `go 1.25` → `go 1.25.0`. govulncheck reads the `go` directive as the stdlib CVE baseline — `go 1.25.0` will surface all CVEs fixed in 1.25.1 through the latest patch. Do **not** split a patch-versioned `go` directive into `go 1.25` + `toolchain go1.25.9` on the assumption that the toolchain directive covers CVE exposure — it does not; only the `go` directive does.
 - **Reusable workflow pinning**: job-level `uses:` entries that delegate to a reusable workflow (e.g., SLSA generators, shared org workflows) are mutable refs and must be SHA-pinned, just like step-level actions. They cannot receive harden-runner steps, so flag them separately.
 - **zizmor in CI**: if the user wants to harden a GitHub Actions setup, recommend adding a `zizmor` job alongside Harden-Runner. They are complementary — Harden-Runner is runtime egress control, zizmor is static analysis of the workflow file itself. Pin the zizmor version (`uvx zizmor==X.Y.Z`) and run at `--min-severity=medium` (default persona) or `--persona=auditor --min-severity=low` (stricter).
-- **dependency-review + Scorecard + SECURITY.md are all zero-infra GitHub-native controls**: when recommending GitHub Actions hardening, offer all three together as a single "CI hardening pack". They cost nothing, require no external accounts or self-hosting, and produce externally visible posture signal (Scorecard badge) plus a vulnerability-disclosure path (`SECURITY.md` + PVR).
-- **Branch protection**: every new required-check job (zizmor, dependency-review, Scorecard) must be added to the repo's required status checks for the default branch, otherwise it can be merged around. Use `gh api -X PUT repos/<owner>/<repo>/branches/<branch>/protection` and update `required_status_checks.contexts`.
+- **dependency-review + SECURITY.md are zero-infra, hands-off GitHub-native controls**: include both in the default fix flow. They cost nothing, require no external accounts or tokens, and produce a vulnerability-disclosure path (`SECURITY.md` + PVR).
+- **OpenSSF Scorecard is *not* in the default fix flow** even though the workflow itself is short. It only produces useful signal once a `SCORECARD_TOKEN` PAT is created, branch protection is configured, and `allow_auto_merge` is enabled at the repo level — all admin-level human actions. Surface it as a finding in the report and apply it only via [Step 5](#step-5-opt-in-openssf-badging-and-scorecard-setup) when the user explicitly opts in.
+- **Branch protection**: every new required-check job (zizmor, dependency-review, Scorecard) must be added to the repo's required status checks for the default branch, otherwise it can be merged around. Use `gh api -X PUT repos/<owner>/<repo>/branches/<branch>/protection` and update `required_status_checks.contexts`. **This is an admin-level repo mutation** — surface the exact `gh` command in the report but only execute it autonomously inside Step 5, after the user has explicitly opted in.
+
+---
+
+## Step 5 (opt-in): OpenSSF badging and Scorecard setup
+
+Do **not** enter this step automatically. Only run it when the user explicitly opts in with a phrase like:
+
+- "set up Scorecard" / "add Scorecard"
+- "add OpenSSF badges" / "do the badging" / "set up the badges"
+- "apply everything including badges"
+- "finish the OpenSSF setup"
+
+The reason this step is gated: every item below either requires a token the user has to generate, an external account at <https://www.bestpractices.dev/>, or an admin-level repo mutation that can lock the user out if misconfigured. An AI agent on its own cannot complete any of these safely.
+
+### 5a. OpenSSF Scorecard workflow
+
+Before creating the workflow, walk the user through the prerequisites in this order — do **not** add `scorecard.yml` until they're done, because a workflow added prematurely will produce a permanently-red Scorecard badge that's worse than no badge:
+
+1. **Confirm GitHub plan**. Scorecard works on any public repo for free; private repos need GHAS. Stop here if it's a private repo without GHAS and the user doesn't want to pay.
+2. **Create the `SCORECARD_TOKEN` PAT**. Walk the user through: <https://github.com/settings/personal-access-tokens/new>. The token must be a fine-grained PAT with **only** `Administration: Read-only` on the target repo. No other scopes. Recommend a 1-year expiry with a calendar reminder to rotate. Have the user paste the token value into `gh secret set SCORECARD_TOKEN --repo <owner>/<repo>` themselves — do not ask them to share it in chat.
+3. **Enable required repo settings** (each is a `gh api` call — show the command and ask for explicit confirmation before running):
+   - `allow_auto_merge=true` so `gh pr merge --auto` works once branch protection is on
+   - `dependabot_security_updates` enabled (required for `dependency-review-action` to function)
+   - Private vulnerability reporting enabled
+4. **Configure branch protection** on the default branch. For solo / no-reviewer projects use the config block documented in the [OpenSSF Scorecard section of the manual checklist](#openssf-scorecard) (count=0, `enforce_admins: true`, `require_code_owner_reviews: false`, `require_last_push_approval: false`). For multi-maintainer repos, propose `required_approving_review_count: 1`, `require_code_owner_reviews: true`, `require_last_push_approval: true` and ask the user to confirm.
+5. **Only then add `.github/workflows/scorecard.yml`** with: weekly schedule + push to default branch + `workflow_dispatch`, SARIF upload via `github/codeql-action/upload-sarif`, `publish_results: true`, `repo_token: ${{ secrets.SCORECARD_TOKEN }}`, harden-runner in `audit` mode, action pins to SHA (resolve with `verify_hash.py gh-action ...`).
+6. **Wait for the first scheduled run** (or trigger via `gh workflow run scorecard.yml`) before adding the Scorecard badge to the README. A badge pointing at an empty result reads as a failure.
+7. **Add the Scorecard badge** to the top of the README only after the first successful run completes.
+
+### 5b. OpenSSF Best Practices Passing badge
+
+Fully manual — the agent's job is to walk the user through it, not to fake it:
+
+1. Register the project at <https://www.bestpractices.dev/en/projects/new>.
+2. Complete the **Passing** self-assessment (~100 questions across the criteria categories). The agent can read each criterion aloud and propose evidence URLs (links to the repo, workflows, `SECURITY.md`, etc.) but **must not submit answers** — the user is attesting personally.
+3. Once 100% Passing is awarded, add the Passing badge to the README.
+
+### 5c. OpenSSF OSPS Baseline badge
+
+Same structure as 5b but a different framework:
+
+1. From the same project page at <https://www.bestpractices.dev/>, start the **OSPS Baseline** self-assessment (smaller — ~25 controls across AC / BR / DO / GV / LE / QA / VM).
+2. Walk the user through each control. The Baseline self-assessment is independent of the Passing badge — a project can hold either, both, or neither.
+3. Once the assessment is submitted, add the Baseline badge to the README. The Baseline badge URL links to the same `bestpractices.dev` project record as the Passing badge.
+
+### 5d. Anything else the user adds to the opt-in queue
+
+If the user says *"also do X"* during Step 5, where X is normally a default-flow item that was already applied, just confirm it's done. If X is a new admin-level mutation not covered above, surface the exact command and ask for confirmation before executing.
 
 ---
 
