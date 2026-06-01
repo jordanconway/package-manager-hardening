@@ -16,6 +16,7 @@ import json
 import sys
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import urlparse
 
 import pytest
 
@@ -327,7 +328,12 @@ def test_tf_provider_opentofu_flag_uses_opentofu_registry():
     with patch.object(verify_hash, "_http_json", side_effect=fake), \
          patch("sys.stdout", io.StringIO()):
         verify_hash.main(["tf-provider", "hashicorp/aws", "--opentofu"])
-    assert "registry.opentofu.org" in seen["url"]
+    # Parse the URL and assert on the hostname directly so a malicious value
+    # like https://evil.com/?x=registry.opentofu.org wouldn't pass (CodeQL
+    # py/incomplete-url-substring-sanitization).
+    parsed = urlparse(seen["url"])
+    assert parsed.scheme == "https"
+    assert parsed.hostname == "registry.opentofu.org"
 
 
 # ---------- go-module --------------------------------------------------------
