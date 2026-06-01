@@ -8,6 +8,26 @@ SPDX-License-Identifier: MIT
 
 This file contains mandatory guidelines for managing dependencies in this Python project. Follow these rules whenever adding, updating, or removing packages, or modifying CI configuration.
 
+## Hash Verification: Never Fabricate
+
+**AI agents must never invent, guess, autocomplete, or extrapolate a `--hash=sha256:...` value, a `uv.lock` hash, a `poetry.lock` hash, or any other cryptographic hash.** A fabricated hash either fails `pip install --require-hashes` (best case) or silently pins to the wrong wheel/sdist if it accidentally matches.
+
+All Python dependency hashes must be produced by the resolver itself — run `pip-compile --generate-hashes`, `uv lock`, `uv pip compile --generate-hashes`, or `poetry lock` and commit the resulting lockfile. Do not hand-edit `--hash=` lines or `hashes:` blocks.
+
+To confirm a specific artifact's hash:
+
+**Preferred:** if the `harden-packages` skill is available, use its helper:
+
+```bash
+python {SKILL_DIR}/verify_hash.py pypi <pkg> <version>            # all artifacts
+python {SKILL_DIR}/verify_hash.py pypi <pkg> <version> --wheel    # wheels only
+python {SKILL_DIR}/verify_hash.py pypi <pkg> <version> --sdist    # sdist only
+```
+
+**Fallback:** `curl -fsSL https://pypi.org/pypi/<pkg>/<version>/json | jq -r '.urls[] | "\(.digests.sha256)  \(.filename)"'`.
+
+If you cannot verify a hash with any of the above, **stop and ask the user**. Do not insert a placeholder or a "likely correct" value.
+
 ## Package Manager
 
 This project uses: <!-- uv | pip+pip-tools — delete as appropriate -->

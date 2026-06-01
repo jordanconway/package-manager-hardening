@@ -14,6 +14,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- New companion script [`skills/harden-packages/verify_hash.py`](skills/harden-packages/verify_hash.py): a single-file, dependency-free CLI that resolves cryptographic hashes from authoritative upstream sources so AI agents using the skill never have to fabricate them. Subcommands cover every ecosystem the skill audits: `gh-action`, `git-ref`, `oci`, `pypi`, `npm`, `crate`, `gem`, `packagist`, `gradle-dist`, `maven`, `tf-provider`, `go-module`. Default output is a bare hash on stdout (shell-friendly); `--json` adds metadata. Exit codes: `0` success, `1` upstream lookup failed, `2` usage error, `3` required external tool missing. Tested with 35 unit tests in [`tests/test_verify_hash.py`](tests/test_verify_hash.py) — all upstream calls are mocked so the suite stays offline.
+- New `## Hash Verification: Never Fabricate` section in every `agents/AGENTS-*.md` file (11 files: docker, github-actions, go, helm, jvm, nodejs, php, python, ruby, rust, terraform). Each section states the rule (never invent / guess / autocomplete a hash), points at `verify_hash.py` as the preferred verification path when the `harden-packages` skill is loaded, and lists a short ecosystem-specific manual fallback for repos that adopt only the AGENTS file. Closes the gap where prior guidance assumed lockfile-generated hashes but said nothing about ad-hoc SHA / digest pinning (`actions/checkout@<sha>`, `FROM node:20@sha256:...`, `go install pkg@<sha>`, etc.).
+- New `## Companion tool: verify_hash.py` section in [`skills/harden-packages/SKILL.md`](skills/harden-packages/SKILL.md) so an agent loading the skill discovers the helper alongside `audit.py` without having to read the AGENTS files first.
+
+### Added
+
 - OpenSSF Open Source Project Security (OSPS) Baseline badge added to the README. Self-assessment completed at <https://www.bestpractices.dev/projects/12822>: 23 controls Met, 2 N/A, 0 Unmet across the AC / BR / DO / GV / LE / QA / VM domains. The Baseline self-assessment is independent of the Best Practices Passing badge already held; both link to the same project (12822).
 
 ### Added

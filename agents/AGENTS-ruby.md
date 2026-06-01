@@ -8,6 +8,25 @@ SPDX-License-Identifier: MIT
 
 This file contains mandatory guidelines for managing dependencies in this Ruby project. Follow these rules whenever adding, updating, or removing gems, or modifying CI configuration.
 
+## Hash Verification: Never Fabricate
+
+**AI agents must never invent, guess, autocomplete, or extrapolate a `Gemfile.lock` checksum, `bundler-checksums` entry, gem `.gem` SHA256, or commit SHA for a git-sourced gem.** A fabricated hash either fails verification or silently pins to the wrong artifact.
+
+All `Gemfile.lock` entries (and any `Gemfile.lock.checksums` produced by the `bundler-checksums` plugin) must be produced by Bundler itself — run `bundle install` / `bundle update <gem>` and commit the result. Do not hand-edit checksum or `revision:` fields.
+
+To confirm a published gem's checksum or a git revision:
+
+**Preferred:** if the `harden-packages` skill is available, use its helper:
+
+```bash
+python {SKILL_DIR}/verify_hash.py gem <gem> <version>             # → SHA256
+python {SKILL_DIR}/verify_hash.py gh-action <owner>/<repo> <ref>  # for git-sourced gems
+```
+
+**Fallback:** `curl -fsSL https://rubygems.org/api/v2/rubygems/<gem>/versions/<version>.json | jq '{sha, number, platform}'`.
+
+If you cannot verify a hash with any of the above, **stop and ask the user**. Do not insert a placeholder or a "likely correct" value.
+
 ## Dependency Rules
 
 **Always pin exact versions** in `Gemfile`. Never use `~>`, `>=`, or open range constraints for production dependencies:

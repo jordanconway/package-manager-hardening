@@ -8,6 +8,24 @@ SPDX-License-Identifier: MIT
 
 This file contains mandatory guidelines for managing Helm chart dependencies in this project. Follow these rules whenever adding, updating, or removing chart dependencies, or modifying CI configuration.
 
+## Hash Verification: Never Fabricate
+
+**AI agents must never invent, guess, autocomplete, or extrapolate a `Chart.lock` digest, an OCI image digest, or any other cryptographic hash.** A fabricated digest either fails verification or silently pins to the wrong artifact.
+
+All `Chart.lock` digests must be produced by Helm itself — run `helm dependency update` and commit the resulting `Chart.lock`. Do not hand-edit `digest:` fields.
+
+For OCI image digests referenced in `values.yaml`:
+
+**Preferred:** if the `harden-packages` skill is available, use its helper:
+
+```bash
+python {SKILL_DIR}/verify_hash.py oci <registry>/<image>:<tag>
+```
+
+**Fallback:** `crane digest <registry>/<image>:<tag>` or `docker buildx imagetools inspect <image>:<tag> --format '{{json .Manifest}}' | jq -r .digest`. For OCI-hosted charts, also `helm pull oci://<registry>/<chart> --version <ver>` and inspect the downloaded artifact.
+
+If you cannot verify a digest with any of the above, **stop and ask the user**. Do not insert a placeholder or a "likely correct" value.
+
 ## Dependency Rules
 
 **Always pin exact chart versions** in `Chart.yaml`. Never use `^`, `~`, `>=`, `x` wildcards, or bare major/minor strings:

@@ -8,6 +8,25 @@ SPDX-License-Identifier: MIT
 
 This file contains mandatory guidelines for managing dependencies in this Go module project. Follow these rules whenever adding, updating, or removing modules, or modifying CI configuration.
 
+## Hash Verification: Never Fabricate
+
+**AI agents must never invent, guess, autocomplete, or extrapolate a `go.sum` hash, module pseudo-version, or commit SHA.** A fabricated hash will fail `go mod verify` (best case) or silently pin to the wrong artifact if it accidentally matches.
+
+All `go.sum` entries must be produced by the Go toolchain itself — run `go mod tidy` / `go get <module>@<version>` and commit the resulting files. Do not hand-edit `go.sum`.
+
+When pinning a `go install` invocation or a `replace` directive to a commit, resolve the SHA / module hash from an authoritative source.
+
+**Preferred:** if the `harden-packages` skill is available, use its helper:
+
+```bash
+python {SKILL_DIR}/verify_hash.py gh-action <owner>/<repo> <tag-or-ref>   # → commit SHA
+python {SKILL_DIR}/verify_hash.py go-module <module> <version>           # → h1: hash via proxy.golang.org
+```
+
+**Fallback:** `gh api repos/<owner>/<repo>/commits/<ref> --jq .sha`, `git ls-remote https://github.com/<owner>/<repo>.git refs/tags/<tag>`, or `GOFLAGS=-mod=mod go list -m <module>@<sha>` to let the toolchain compute the pseudo-version.
+
+If you cannot verify a hash or SHA with any of the above, **stop and ask the user**. Do not insert a placeholder or a "likely correct" value.
+
 ## Dependency Rules
 
 **Always pin explicit versions.** Never use `@latest` or `@master` when adding or updating a module. Always specify a tagged version:

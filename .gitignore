@@ -11,3 +11,6 @@ __pycache__/
 
 # Node.js
 node_modules/
+
+# Local agent / editor config (Claude Code, etc.)
+.claude/
