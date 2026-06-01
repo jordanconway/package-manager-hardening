@@ -12,28 +12,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Changed
+## [0.2.0] - 2026-06-01
 
-- **Default fix flow is now hands-off for the user.** The skill no longer auto-applies OpenSSF badging-related work — Scorecard workflow, OpenSSF Best Practices Passing badge, OpenSSF OSPS Baseline badge, README badge additions for any of the above, branch-protection mutations on the default branch, or repo-admin setting flips (`allow_auto_merge`, `dependabot_security_updates`, PVR, secret creation). These items still appear in the audit report (marked *(opt-in)*) but are deferred to a new **Step 5 (opt-in): OpenSSF badging and Scorecard setup** section that runs only when the user explicitly says *"set up Scorecard"*, *"add OpenSSF badges"*, *"do the badging"*, or equivalent. Rationale: every deferred item requires a token the user must generate, an external account at <https://www.bestpractices.dev/>, or an admin-level mutation that can lock the user out if misconfigured — none of which an AI agent can complete safely on its own. The default profile remains aggressive about everything the agent *can* finish unattended (lockfile + package-manager config, Dependabot, harden-runner, zizmor, dependency-review, runner image pinning, action SHA pinning, CodeQL, fuzz, `SECURITY.md` file content).
-- `skills/harden-packages/SKILL.md`: added an explicit *"Default profile: what gets auto-applied vs deferred"* subsection at the top of Step 4 listing each bucket (apply by default / defer to Step 5 / flag for human review per item). The misleading earlier note that grouped dependency-review + Scorecard + SECURITY.md as a single *"CI hardening pack"* is split: dependency-review and SECURITY.md stay in the default flow; Scorecard moves to the opt-in step with the prerequisites it actually depends on.
+Second tagged release. Major theme: closing two gaps in the AI-agent workflow — fabricated hashes when pinning, and unsafe auto-apply of badging-related work that needs human follow-through. Plus accumulated fuzzing, branch-protection, and badging infrastructure that landed on `main` between 0.1.0 and now.
 
 ### Added
 
 - New companion script [`skills/harden-packages/verify_hash.py`](skills/harden-packages/verify_hash.py): a single-file, dependency-free CLI that resolves cryptographic hashes from authoritative upstream sources so AI agents using the skill never have to fabricate them. Subcommands cover every ecosystem the skill audits: `gh-action`, `git-ref`, `oci`, `pypi`, `npm`, `crate`, `gem`, `packagist`, `gradle-dist`, `maven`, `tf-provider`, `go-module`. Default output is a bare hash on stdout (shell-friendly); `--json` adds metadata. Exit codes: `0` success, `1` upstream lookup failed, `2` usage error, `3` required external tool missing. Tested with 35 unit tests in [`tests/test_verify_hash.py`](tests/test_verify_hash.py) — all upstream calls are mocked so the suite stays offline.
 - New `## Hash Verification: Never Fabricate` section in every `agents/AGENTS-*.md` file (11 files: docker, github-actions, go, helm, jvm, nodejs, php, python, ruby, rust, terraform). Each section states the rule (never invent / guess / autocomplete a hash), points at `verify_hash.py` as the preferred verification path when the `harden-packages` skill is loaded, and lists a short ecosystem-specific manual fallback for repos that adopt only the AGENTS file. Closes the gap where prior guidance assumed lockfile-generated hashes but said nothing about ad-hoc SHA / digest pinning (`actions/checkout@<sha>`, `FROM node:20@sha256:...`, `go install pkg@<sha>`, etc.).
 - New `## Companion tool: verify_hash.py` section in [`skills/harden-packages/SKILL.md`](skills/harden-packages/SKILL.md) so an agent loading the skill discovers the helper alongside `audit.py` without having to read the AGENTS files first.
-
-### Added
-
+- New `## Step 5 (opt-in): OpenSSF badging and Scorecard setup` section in `SKILL.md` documenting the trigger phrases the agent listens for ("set up Scorecard", "add OpenSSF badges", "do the badging", etc.) and the three sub-flows: 5a Scorecard (plan check → PAT walk-through → repo settings → branch protection → workflow file → first-run verify → badge addition), 5b Best Practices Passing (~100-question self-assessment, user attests personally), 5c OSPS Baseline (~25 controls).
 - OpenSSF Open Source Project Security (OSPS) Baseline badge added to the README. Self-assessment completed at <https://www.bestpractices.dev/projects/12822>: 23 controls Met, 2 N/A, 0 Unmet across the AC / BR / DO / GV / LE / QA / VM domains. The Baseline self-assessment is independent of the Best Practices Passing badge already held; both link to the same project (12822).
-
-### Added
-
+- Coverage-guided fuzz harnesses in [`fuzz/`](fuzz/) using Atheris (libFuzzer for Python). Two harnesses cover every parser and helper. Hash-pinned in [`fuzz/requirements.txt`](fuzz/requirements.txt) and [`fuzz/requirements.in`](fuzz/requirements.in). Documented in [`fuzz/README.md`](fuzz/README.md).
+- New scheduled workflow [`.github/workflows/fuzz.yml`](.github/workflows/fuzz.yml) runs each Atheris harness for 3 minutes weekly (Monday 07:17 UTC) and on `workflow_dispatch`. Crashes upload as artifacts and fail the run. Pinned to `ubuntu-24.04` + Python 3.11 (Atheris wheel constraint).
 - [`fuzz/corpus/fuzz_audit_helpers/README.md`](fuzz/corpus/fuzz_audit_helpers/README.md) documenting every binary input in the corpus (currently one: `crash-find_value-no-group`, 4 bytes). Records hex bytes, base64, the bug each input triggered, the fix, and the unit-test regression that pins the same bytes in source. Satisfies OpenSSF Baseline `OSPS-QA-05.02` ("no unreviewable binary artifacts") for the corpus directory — the files have to stay raw bytes on disk for libFuzzer to replay them, but every byte is now documented and cross-referenced.
 - `fuzz/README.md`: pointer to the per-harness corpus READMEs and the requirement to document every new corpus entry with hex bytes + bug + fix + regression test.
 
 ### Changed
 
+- **Default fix flow is now hands-off for the user.** The skill no longer auto-applies OpenSSF badging-related work — Scorecard workflow, OpenSSF Best Practices Passing badge, OpenSSF OSPS Baseline badge, README badge additions for any of the above, branch-protection mutations on the default branch, or repo-admin setting flips (`allow_auto_merge`, `dependabot_security_updates`, PVR, secret creation). These items still appear in the audit report (marked *(opt-in)*) but are deferred to the new Step 5 (see Added) that runs only when the user explicitly opts in. Rationale: every deferred item requires a token the user must generate, an external account at <https://www.bestpractices.dev/>, or an admin-level mutation that can lock the user out if misconfigured — none of which an AI agent can complete safely on its own. The default profile remains aggressive about everything the agent *can* finish unattended (lockfile + package-manager config, Dependabot, harden-runner, zizmor, dependency-review, runner image pinning, action SHA pinning, CodeQL, fuzz, `SECURITY.md` file content).
+- `skills/harden-packages/SKILL.md`: added an explicit *"Default profile: what gets auto-applied vs deferred"* subsection at the top of Step 4 listing each bucket (apply by default / defer to Step 5 / flag for human review per item). The misleading earlier note that grouped dependency-review + Scorecard + SECURITY.md as a single *"CI hardening pack"* is split: dependency-review and SECURITY.md stay in the default flow; Scorecard moves to the opt-in step with the prerequisites it actually depends on.
 - Branch protection on `main` tightened to maximise Scorecard's `Branch-Protection` check score on a solo project:
   - `enforce_admins: true` — owner is subject to the same rules (was `false`)
   - `required_pull_request_reviews` set with `required_approving_review_count: 0` — PR flow is now required (no direct push to `main`) but no approver is required (GitHub forbids self-approval; requiring one would block every merge)
@@ -45,15 +43,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `SECURITY.md`: expanded the `Code-Review` known trade-off; added `Branch-Protection — codeowners review not required` and `Branch-Protection — last push approval is disabled` sub-entries.
 - Repo setting `allow_auto_merge` flipped to `true` so `gh pr merge --auto --squash --delete-branch` works (otherwise GraphQL refuses with `Auto merge is not allowed for this repository`).
 
-### Added
-
-- Coverage-guided fuzz harnesses in [`fuzz/`](fuzz/) using Atheris (libFuzzer for Python). Two harnesses cover every parser and helper. Hash-pinned in [`fuzz/requirements.txt`](fuzz/requirements.txt) and [`fuzz/requirements.in`](fuzz/requirements.in). Documented in [`fuzz/README.md`](fuzz/README.md).
-- New scheduled workflow [`.github/workflows/fuzz.yml`](.github/workflows/fuzz.yml) runs each Atheris harness for 3 minutes weekly (Monday 07:17 UTC) and on `workflow_dispatch`. Crashes upload as artifacts and fail the run. Pinned to `ubuntu-24.04` + Python 3.11 (Atheris wheel constraint).
-
 ### Fixed
 
 - Scorecard workflow now passes a fine-grained `SCORECARD_TOKEN` to `ossf/scorecard-action` so the `Branch-Protection` check can read the classic branch-protection API. Without this the entire run failed with `some github tokens can't read classic branch protection rules`. Token requires only `Administration: Read-only` scope on this repo. Documented in [docs/github-actions.md](docs/github-actions.md), the harden-packages skill audit checklist, and AGENTS-github-actions.md.
 - Documentation correction: previous releases stated that Hypothesis property-based tests satisfy OpenSSF Scorecard's `Fuzzing` check for Python. **They do not** — Scorecard's Python detector matches `import atheris` only (Hypothesis is recognised for Erlang / Haskell / Elixir / Gleam, but not Python). Corrected in `docs/github-actions.md`, `skills/harden-packages/SKILL.md`, `agents/AGENTS-github-actions.md`, and `SECURITY.md`.
+- Test assertion in `tests/test_verify_hash.py` for the OpenTofu registry URL now parses the URL and checks `scheme` + `hostname` directly instead of substring matching the hostname, addressing CodeQL `py/incomplete-url-substring-sanitization`.
 
 ## [0.1.0] - 2026-05-12
 
