@@ -8,6 +8,25 @@ SPDX-License-Identifier: MIT
 
 This file contains mandatory guidelines for managing dependencies in this PHP project. Follow these rules whenever adding, updating, or removing packages, or modifying CI configuration.
 
+## Hash Verification: Never Fabricate
+
+**AI agents must never invent, guess, autocomplete, or extrapolate a `composer.lock` content-hash, package `dist.shasum`, `reference` commit SHA, or any other cryptographic hash.** A fabricated hash either fails verification or silently pins to the wrong artifact.
+
+All `composer.lock` hashes must be produced by Composer itself — run `composer update <pkg>` / `composer install` and commit the resulting `composer.lock`. Do not hand-edit `shasum`, `reference`, or `content-hash` fields.
+
+To confirm a package version is real:
+
+**Preferred:** if the `harden-packages` skill is available, use its helper:
+
+```bash
+python {SKILL_DIR}/verify_hash.py packagist <vendor>/<pkg> <version>   # → dist.shasum / source.reference
+python {SKILL_DIR}/verify_hash.py gh-action <owner>/<repo> <ref>       # for git-sourced packages
+```
+
+**Fallback:** `composer show <vendor>/<pkg> <version> --all` or `curl -fsSL https://repo.packagist.org/p2/<vendor>/<pkg>.json | jq '...'`.
+
+If you cannot verify a hash with any of the above, **stop and ask the user**. Do not insert a placeholder or a "likely correct" value.
+
 ## Dependency Rules
 
 **Always pin exact versions** in `composer.json`. Never use `^`, `~`, `>=`, or wildcard constraints for production dependencies:

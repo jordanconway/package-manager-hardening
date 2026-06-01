@@ -45,6 +45,40 @@ the audit phase.
 the checklist in the [Reference: Manual Audit Checklist](#reference-manual-audit-checklist)
 section below.
 
+## Companion tool: `verify_hash.py`
+
+Any time hardening work requires writing a cryptographic hash, digest, or commit
+SHA into a file — pinning a GitHub Action, a container image, a Gradle wrapper, a
+lockfile, a Terraform provider — use `verify_hash.py` to resolve it from the
+authoritative upstream registry. **Never invent, guess, autocomplete, or
+extrapolate a hash.**
+
+```bash
+python {SKILL_DIR}/verify_hash.py --help    # list subcommands
+
+# Examples (each prints just the hash on stdout; add --json for metadata)
+python {SKILL_DIR}/verify_hash.py gh-action actions/checkout v4
+python {SKILL_DIR}/verify_hash.py oci node:20-alpine
+python {SKILL_DIR}/verify_hash.py pypi requests 2.32.3 --sdist
+python {SKILL_DIR}/verify_hash.py npm left-pad 1.3.0
+python {SKILL_DIR}/verify_hash.py crate serde 1.0.210
+python {SKILL_DIR}/verify_hash.py gem rails 7.2.1
+python {SKILL_DIR}/verify_hash.py packagist symfony/console 7.1.5
+python {SKILL_DIR}/verify_hash.py gradle-dist 8.10
+python {SKILL_DIR}/verify_hash.py maven org.apache.commons:commons-lang3:3.17.0
+python {SKILL_DIR}/verify_hash.py tf-provider hashicorp/aws 5.84.0
+python {SKILL_DIR}/verify_hash.py go-module github.com/stretchr/testify v1.9.0
+python {SKILL_DIR}/verify_hash.py git-ref https://gitlab.com/foo/bar.git v1.0.0
+```
+
+Exit codes: `0` success, `1` upstream lookup failed, `2` usage error, `3` required
+external tool missing (only for `oci` and `git-ref`, which shell out to
+`crane`/`skopeo`/`docker` or `git`). If a lookup fails or the right tool isn't
+available, stop and ask the user — do not write a placeholder.
+
+The per-ecosystem AGENTS files in `agents/` reference this helper as the preferred
+verification path and document a manual fallback for each ecosystem.
+
 ## Step 2: Interpret findings
 
 Read the JSON output. The top-level keys are:

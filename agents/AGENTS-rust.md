@@ -8,6 +8,25 @@ SPDX-License-Identifier: MIT
 
 This file contains mandatory guidelines for managing dependencies in this Rust project. Follow these rules whenever adding, updating, or removing crates, or modifying CI configuration.
 
+## Hash Verification: Never Fabricate
+
+**AI agents must never invent, guess, autocomplete, or extrapolate a `Cargo.lock` checksum, a `[source.<name>] replace-with` SHA, a `cargo-vet` audit hash, or a git `rev = "..."` commit SHA.** A fabricated hash either fails verification or silently pins to the wrong artifact.
+
+All `Cargo.lock` checksums must be produced by Cargo itself — run `cargo update -p <crate>` / `cargo generate-lockfile` and commit the result. Do not hand-edit `checksum = "..."` lines.
+
+To confirm a published crate's checksum or a git commit:
+
+**Preferred:** if the `harden-packages` skill is available, use its helper:
+
+```bash
+python {SKILL_DIR}/verify_hash.py crate <crate> <version>         # → SHA256
+python {SKILL_DIR}/verify_hash.py gh-action <owner>/<repo> <ref>  # for git-sourced crates
+```
+
+**Fallback:** `curl -fsSL https://crates.io/api/v1/crates/<crate>/<version> | jq '.version | {num, checksum, dl_path}'`.
+
+If you cannot verify a hash with any of the above, **stop and ask the user**. Do not insert a placeholder or a "likely correct" value.
+
 ## Dependency Rules
 
 **Always pin exact versions** using the `=` operator in `Cargo.toml`. Never use bare version strings, `>=`, or `~` ranges for production dependencies:

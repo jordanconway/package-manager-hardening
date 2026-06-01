@@ -11,6 +11,26 @@ This file contains mandatory guidelines for managing provider and module depende
 <!-- terraform | opentofu -->
 Delete the line above and keep only the tool that applies to this project.
 
+## Hash Verification: Never Fabricate
+
+**AI agents must never invent, guess, autocomplete, or extrapolate a `.terraform.lock.hcl` `h1:` or `zh:` hash, a module checksum, or any other cryptographic hash.** A fabricated hash either fails `terraform init` verification or silently allows the wrong provider binary to be installed.
+
+All `.terraform.lock.hcl` entries must be produced by the CLI itself — run `terraform providers lock -platform=...` (or `tofu providers lock`) for every CI/dev platform and commit the resulting file. Do not hand-edit `hashes = [...]` blocks.
+
+To confirm a provider version actually exists on the registry before pinning to it:
+
+**Preferred:** if the `harden-packages` skill is available, use its helper:
+
+```bash
+python {SKILL_DIR}/verify_hash.py tf-provider <namespace>/<name>              # list all versions
+python {SKILL_DIR}/verify_hash.py tf-provider <namespace>/<name> <version>   # verify exists
+python {SKILL_DIR}/verify_hash.py tf-provider <namespace>/<name> --opentofu  # OpenTofu registry
+```
+
+**Fallback:** `curl -fsSL https://registry.terraform.io/v1/providers/<namespace>/<name>/versions | jq '.versions[].version'` (or `registry.opentofu.org` for OpenTofu).
+
+If you cannot verify a hash with any of the above, **stop and ask the user**. Do not insert a placeholder or a "likely correct" value.
+
 ## Dependency Rules
 
 **Always pin providers to exact versions** using the `=` operator in `required_providers`. Never use `~>`, `>=`, or open ranges for production providers:

@@ -8,6 +8,25 @@ SPDX-License-Identifier: MIT
 
 This file contains mandatory guidelines for working with GitHub Actions workflows in this repository. Follow these rules whenever adding, modifying, or reviewing files under `.github/workflows/`.
 
+## Hash Verification: Never Fabricate
+
+**AI agents must never invent, guess, autocomplete, or extrapolate a commit SHA, image digest, or any other cryptographic hash.** A fabricated SHA either fails verification (breaks the build) or — worse — silently pins to whatever artifact happens to collide with the guessed value. Treat any hash you did not just look up as unknown.
+
+Every action SHA, runner image digest, or tool integrity hash written into a workflow must come from an authoritative lookup performed in this session.
+
+**Preferred:** if the `harden-packages` skill is available, use its helper instead of hand-rolling `curl`/`gh` invocations:
+
+```bash
+python {SKILL_DIR}/verify_hash.py gh-action <owner>/<repo> <tag-or-ref>   # → full commit SHA
+python {SKILL_DIR}/verify_hash.py oci <image>:<tag>                       # → sha256: digest
+```
+
+**Fallback if the helper isn't present:** `gh api repos/<owner>/<repo>/commits/<ref> --jq .sha` or `git ls-remote https://github.com/<owner>/<repo>.git 'refs/tags/<tag>^{}'`.
+
+For tool hashes inside workflows, generate them with the ecosystem's own tooling (`npm ci` against a committed `package-lock.json`, `pip-compile --generate-hashes`, etc.) — never hand-edit `integrity:` or `--hash=` values.
+
+If you cannot verify a hash with any of the above, **stop and ask the user**. Do not insert a placeholder, a truncated SHA, or a "likely correct" value.
+
 ## Checkout: disable credential persistence
 
 Every `actions/checkout` invocation must set `persist-credentials: false` unless the job genuinely needs to push back to the repo (release tagging, automated commits). The default leaves `GITHUB_TOKEN` in `.git/config` for the rest of the job, where any subsequent step — including a compromised dependency build — can use it.

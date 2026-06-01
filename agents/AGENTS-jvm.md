@@ -8,6 +8,23 @@ SPDX-License-Identifier: MIT
 
 This file contains mandatory guidelines for managing dependencies in this JVM project (Maven or Gradle). Follow these rules whenever adding, updating, or removing dependencies or plugins, or modifying CI configuration.
 
+## Hash Verification: Never Fabricate
+
+**AI agents must never invent, guess, autocomplete, or extrapolate a checksum** — including Gradle's `distributionSha256Sum`, entries in `verification-metadata.xml`, Maven's `.sha1` / `.sha256` / `.sha512` sibling files, or any other cryptographic hash. A fabricated checksum either fails verification or silently pins to the wrong artifact.
+
+All JVM dependency / wrapper checksums must come from an authoritative source.
+
+**Preferred:** if the `harden-packages` skill is available, use its helper:
+
+```bash
+python {SKILL_DIR}/verify_hash.py gradle-dist <version> [bin|all]   # Gradle wrapper SHA256
+python {SKILL_DIR}/verify_hash.py maven <group>:<artifact>:<version>  # Maven Central SHA256/SHA1
+```
+
+**Fallback:** `curl -fsSL https://services.gradle.org/distributions/gradle-<ver>-bin.zip.sha256` for the wrapper, `curl -fsSL https://repo1.maven.org/maven2/<path>/<artifact>-<ver>.jar.sha256` for Maven Central, or `./gradlew --write-verification-metadata sha256 help` to let Gradle generate dependency verification metadata.
+
+If you cannot verify a checksum with any of the above, **stop and ask the user**. Do not insert a placeholder or a "likely correct" value.
+
 ## Dependency Rules — All JVM projects
 
 **Always pin exact versions** for both direct dependencies and plugins. Never use dynamic versions, ranges, `LATEST`, `RELEASE`, `+`, or `SNAPSHOT` in production manifests.

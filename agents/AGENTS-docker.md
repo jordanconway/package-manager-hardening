@@ -8,6 +8,22 @@ SPDX-License-Identifier: MIT
 
 This file contains mandatory guidelines for working with Dockerfiles and container images in this project. Follow these rules whenever modifying Dockerfiles, updating base images, or adding container-related CI steps.
 
+## Hash Verification: Never Fabricate
+
+**AI agents must never invent, guess, autocomplete, or extrapolate an image digest (`sha256:...`) or any other cryptographic hash.** A fabricated digest either fails the pull (best case) or silently pins to an unintended image if it collides with anything in the registry. Treat any digest you did not just look up as unknown.
+
+Every `@sha256:...` written into a Dockerfile, Compose file, Kubernetes manifest, or CI step must come from an authoritative registry lookup performed in this session.
+
+**Preferred:** if the `harden-packages` skill is available, use its helper:
+
+```bash
+python {SKILL_DIR}/verify_hash.py oci <image>:<tag>          # → sha256: digest
+```
+
+**Fallback if the helper isn't present:** `crane digest <image>:<tag>`, `skopeo inspect docker://<image>:<tag> --format '{{.Digest}}'`, or `docker buildx imagetools inspect <image>:<tag> --format '{{json .Manifest}}' | jq -r .digest`.
+
+If you cannot verify a digest with any of the above, **stop and ask the user**. Do not insert a placeholder, a truncated digest, or a "likely correct" value.
+
 ## Base Image Rules
 
 **Always pin base images to their immutable digest.** Never use a mutable tag alone:

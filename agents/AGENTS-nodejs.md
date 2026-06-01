@@ -8,6 +8,24 @@ SPDX-License-Identifier: MIT
 
 This file contains mandatory guidelines for managing dependencies in this Node.js project. Follow these rules whenever adding, updating, or removing packages, or modifying CI configuration.
 
+## Hash Verification: Never Fabricate
+
+**AI agents must never invent, guess, autocomplete, or extrapolate an SRI `integrity` value (`sha512-...`), a tarball checksum, or any other cryptographic hash** in `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lockb`, or `.npmrc`. A fabricated integrity hash either fails verification or silently pins to the wrong tarball.
+
+All lockfile integrity hashes must be produced by the package manager itself — run `npm install`, `pnpm install`, `yarn install`, or `bun install` and commit the resulting lockfile. Do not hand-edit `integrity:` fields.
+
+To confirm a published tarball's integrity (e.g. when reviewing a Dependabot PR):
+
+**Preferred:** if the `harden-packages` skill is available, use its helper:
+
+```bash
+python {SKILL_DIR}/verify_hash.py npm <package> <version>    # → sha512-... SRI integrity
+```
+
+**Fallback:** `npm view <pkg>@<version> dist.integrity dist.tarball dist.shasum`.
+
+If you cannot verify a hash with any of the above, **stop and ask the user**. Do not insert a placeholder or a "likely correct" value.
+
 ## Package Manager
 
 This project uses: <!-- npm | pnpm | yarn | bun — delete as appropriate -->
