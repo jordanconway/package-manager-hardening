@@ -12,7 +12,7 @@ description: >
   chain security", "add Dependabot", "run zizmor", or "are my packages safe?". Works
   across Node.js
   (npm/pnpm/yarn/bun), Python (pip/uv), Go, Rust/Cargo, PHP/Composer, Ruby/Bundler,
-  JVM (Maven, Gradle — Java and Kotlin), and Terraform/OpenTofu repos
+  JVM (Maven, Gradle — Java and Kotlin), .NET (NuGet), and Terraform/OpenTofu repos
 ---
 
 <!--
@@ -83,7 +83,7 @@ verification path and document a manual fallback for each ecosystem.
 
 Read the JSON output. The top-level keys are:
 
-- `ecosystems_detected` — list of ecosystems found (nodejs, python, go, rust, php, ruby, terraform, maven, gradle)
+- `ecosystems_detected` — list of ecosystems found (nodejs, python, go, rust, php, ruby, dotnet, terraform, maven, gradle)
 - One key per ecosystem (e.g. `nodejs`, `python`) with nested findings
 - `dependabot` — per-ecosystem Dependabot configuration status
 - `harden_runner` — per-workflow Harden-Runner status
@@ -114,6 +114,13 @@ Each check has a `status` field: `"pass"`, `"warn"`, `"fail"`, or `"missing"`.
 - `gradle.reject_dynamic.status: fail` — neither `failOnNonReproducibleResolution()` nor `failOnDynamicVersions()` configured.
 - `gradle.ci.writes_locks_in_ci: true` — CI is running `--write-locks` or `--write-verification-metadata`. These are local-only operations; running them in CI defeats the controls. Always flag.
 - `dependabot.ecosystems.gradle.gradle_wrapper_ecosystem: missing` — sub-finding: the Gradle Wrapper has its own Dependabot ecosystem (`gradle-wrapper`) separate from `gradle`, and is missing.
+- `dotnet.lockfile.status: fail` — `packages.lock.json` is missing. NuGet does not generate this by default; `RestorePackagesWithLockFile` must be enabled.
+- `dotnet.lock_file_opt_in.status: fail` — `<RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>` is not present in any project file or `Directory.Build.props`. Without it, `--locked-mode` has nothing to enforce.
+- `dotnet.exact_pins.loose` — `<PackageReference>` or `<PackageVersion>` entries using `*`, `*-*`, or range notation (`[1.0,)`, `[1.0, 2.0)`). Flag each one.
+- `dotnet.central_package_management.status: fail` — `Directory.Packages.props` with `ManagePackageVersionsCentrally` is absent. Not strictly required but strongly recommended for multi-project solutions to prevent version drift.
+- `dotnet.source_mapping.status: fail` — `nuget.config` is absent or lacks `<packageSourceMapping>`. Without source mapping, any package name can be served from any configured source, enabling dependency confusion attacks.
+- `dotnet.ci.locked_mode: false` — CI is not running `dotnet restore --locked-mode`. Without it the lockfile is not enforced and the build can silently re-resolve to a different version set.
+- `dotnet.ci.vulnerability_check: false` — `dotnet list package --vulnerable` is not in CI. Add `dotnet list package --vulnerable --include-transitive` as a build-fail gate.
 
 ## Step 3: Report findings
 
@@ -215,6 +222,7 @@ If the user agrees (fully or partially), apply the fixes in this order — lower
 3. `.cargo/config.toml` — add `[cooldown]` block
 4. `composer.json` — add `roave/security-advisories` dev dependency; tighten `^`/`~` pins to exact (flag for human review)
 5. Ruby CI — add `BUNDLE_FROZEN=true` and `bundle audit check` to CI workflow
+5a. .NET — add `<RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>` to `Directory.Build.props`; run `dotnet restore` locally and commit `packages.lock.json`; add `--locked-mode` and `dotnet list package --vulnerable --include-transitive` to CI; add `<packageSourceMapping>` to `nuget.config`
 6. Terraform `*.tf` — tighten `~>` / `>=` constraints to `=` exact pins (**do not apply autonomously** — present proposed changes and require explicit human approval; changing constraints can cause `terraform init` to fail)
 7. Maven `pom.xml` — add `maven-enforcer-plugin` with `banDynamicVersions` / `requirePluginVersions` / `requireReleaseDeps` / `dependencyConvergence`; set `<checksumPolicy>fail</checksumPolicy>` (**do not autonomously change `<version>` pins** — flag for human review, since tightening a transitive can break downstream consumers)
 8. Gradle `build.gradle(.kts)` / `settings.gradle(.kts)` — add `dependencyLocking { lockAllConfigurations(); lockMode.set(LockMode.STRICT) }`, `failOnNonReproducibleResolution()`, and `RepositoriesMode.FAIL_ON_PROJECT_REPOS`; remove `mavenLocal()` and `jcenter()` (**flag — repository changes can break local development**). Generating `gradle.lockfile` and `gradle/verification-metadata.xml` requires running `./gradlew --write-locks` and `./gradlew --write-verification-metadata sha256,pgp help` locally — do not run these in CI, and do not run them autonomously; instruct the user to run them and commit the result.
@@ -355,6 +363,67 @@ export BUNDLE_FROZEN=true
 bundle install --jobs 4 --retry 3
 bundle exec bundle-audit check --update
 ```
+
+**.NET CI install and audit:**
+
+```bash
+dotnet restore --locked-mode
+dotnet build --no-restore --configuration Release
+dotnet test --no-restore --configuration Release
+dotnet list package --vulnerable --include-transitive
+```
+
+**.NET Directory.Build.props (lockfile opt-in):**
+
+```xml
+<Project>
+  <PropertyGroup>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+</Project>
+```
+
+**.NET nuget.config (package source mapping):**
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <clear />
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+  </packageSources>
+  <packageSourceMapping>
+    <packageSource key="nuget.org">
+      <package pattern="*" />
+    </packageSource>
+  </packageSourceMapping>
+</configuration>
+```
+
+**Dependabot nuget ecosystem entry:**
+
+```yaml
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+```
+
+**Harden-Runner endpoints for NuGet:**
+
+```yaml
+      api.nuget.org:443
+      globalcdn.nuget.org:443
+```
+
+Add `dotnetcli.azureedge.net:443` and `builds.dotnet.microsoft.com:443` when using
+`actions/setup-dotnet`. Add your private feed hostname for Azure Artifacts, GitHub Packages,
+or Artifactory.
 
 **Dependabot bundler ecosystem entry:**
 
@@ -573,6 +642,7 @@ Append the ecosystem-specific endpoints:
 - Rust: `crates.io:443 index.crates.io:443 static.crates.io:443`
 - PHP: `packagist.org:443 repo.packagist.org:443`
 - Ruby: `rubygems.org:443 api.rubygems.org:443 index.rubygems.org:443` (add `raw.githubusercontent.com:443` if `bundle audit update` runs in CI)
+- .NET / NuGet: `api.nuget.org:443 globalcdn.nuget.org:443` (add `dotnetcli.azureedge.net:443 builds.dotnet.microsoft.com:443` if `actions/setup-dotnet` is used; add private feed hostname for Azure Artifacts / GitHub Packages)
 - Maven / Gradle: `repo.maven.apache.org:443 repo1.maven.org:443 plugins.gradle.org:443 services.gradle.org:443 downloads.gradle.org:443` (add `nvd.nist.gov:443 services.nvd.nist.gov:443` if OWASP Dependency-Check runs; `dl.google.com:443` for Android/Kotlin)
 - Terraform: `registry.terraform.io:443 releases.hashicorp.com:443 checkpoint-api.hashicorp.com:443`
 - OpenTofu: `registry.opentofu.org:443` (provider binary CDN endpoints vary by provider — discover via `audit` mode first)
@@ -691,6 +761,17 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
 - Is Composer 2.7 or later in use?
 - Does CI run `composer audit --locked`? Is `roave/security-advisories:dev-latest` a dev dependency?
 - Does CI use `COMPOSER_NO_INTERACTION=1` and `--no-scripts --no-plugins --prefer-dist`?
+
+### .NET / NuGet
+
+- Is `<RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>` set in `Directory.Build.props` or each `.csproj`? (Not the default — must be opted in.)
+- Is `packages.lock.json` present next to each `.csproj` and committed? (Generated by `dotnet restore` once the opt-in is set.)
+- Does CI use `dotnet restore --locked-mode`? (Fail if packages.lock.json would need to change.)
+- Are version constraints free of floating (`*`, `*-*`) and range syntax (`[1.0,)`, `[1.0, 2.0)`)? Bare versions like `13.0.3` are acceptable when paired with a lockfile; `[13.0.3]` bracket notation is the strictly exact form.
+- Is `Directory.Packages.props` with `ManagePackageVersionsCentrally` present for multi-project solutions?
+- Is `nuget.config` present with `<packageSourceMapping>` configured? (Prevents dependency confusion attacks.)
+- Does CI run `dotnet list package --vulnerable --include-transitive`?
+- Is `global.json` present with the .NET SDK version pinned (`"rollForward": "disable"`)?
 
 ### Ruby / Bundler
 

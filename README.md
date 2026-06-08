@@ -11,7 +11,7 @@ SPDX-License-Identifier: MIT
 [![OpenSSF Baseline](https://www.bestpractices.dev/projects/12822/baseline)](https://www.bestpractices.dev/projects/12822)
 [![REUSE status](https://api.reuse.software/badge/github.com/jordanconway/package-manager-hardening)](https://api.reuse.software/info/github.com/jordanconway/package-manager-hardening)
 
-A reference for hardening software supply chains across npm, pnpm, Yarn, Bun, pip, uv, Go modules, Cargo, Maven, Gradle, Terraform, and OpenTofu.
+A reference for hardening software supply chains across npm, pnpm, Yarn, Bun, pip, uv, Go modules, Cargo, Maven, Gradle, NuGet, Terraform, and OpenTofu.
 
 Supply chain attacks typically succeed through one of a small number of vectors: a loose version constraint allows a newly published malicious version to be silently pulled in; a missing or unenforced lockfile lets an attacker's package substitute for a legitimate one; a compromised maintainer account publishes a backdoored patch release that lands in CI within minutes of publication; or a package's postinstall script runs arbitrary code during a routine `npm install`. This repository addresses all of these through a layered set of controls applied consistently across ecosystems.
 
@@ -50,6 +50,7 @@ curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager
 curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-docker.md
 curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-helm.md
 curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-jvm.md
+curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager-hardening/main/agents/AGENTS-dotnet.md
 ```
 
 **For on-demand auditing:** install the `harden-packages` skill and say `harden my repo` in Claude Code or Cowork.
@@ -72,6 +73,7 @@ cp -r skills/harden-packages ~/.claude/skills/
 | [Rust](docs/rust.md) | Cargo — exact version pinning, `cargo-cooldown`, `cargo audit`, lockfile enforcement |
 | [PHP](docs/php.md) | Composer — lockfile enforcement, exact pinning, `composer audit`, `roave/security-advisories`, build script control |
 | [Ruby](docs/ruby.md) | Bundler — `Gemfile.lock`, exact pinning, `BUNDLE_FROZEN`, `bundler-audit`, Dependabot cooldown |
+| [.NET](docs/dotnet.md) | NuGet — `packages.lock.json`, `--locked-mode`, Central Package Management, Package Source Mapping, `dotnet list package --vulnerable` |
 | [Terraform / OpenTofu](docs/terraform.md) | Provider pinning, `.terraform.lock.hcl`, multi-platform hashes, `-lockfile=readonly`, OpenTofu differences |
 | [Helm](docs/helm.md) | `Chart.yaml` exact pinning, `Chart.lock`, `helm dependency build`, OCI digest pinning, `--verify` / cosign, Renovate cooldowns, Helmfile |
 | [JVM (Java/Kotlin)](docs/jvm.md) | Maven, Gradle — exact pinning, `<dependencyManagement>`, maven-enforcer, `gradle.lockfile`, dependency verification (`verification-metadata.xml`), Gradle Wrapper SHA pinning, repository control |
@@ -111,6 +113,7 @@ cp -r skills/harden-packages ~/.claude/skills/
 | [Maven](docs/jvm.md#maven) | ❌ No | — | (use Dependabot + exact pins + maven-enforcer `banDynamicVersions`) | — |
 | [Gradle](docs/jvm.md#gradle) | ❌ No | — | (use Dependabot + `dependencyLocking` + `verification-metadata.xml`) | — |
 | [Bundler](docs/ruby.md#bundler) | ❌ No | — | (use Dependabot + exact pins) | — |
+| [NuGet (.NET)](docs/dotnet.md#nuget) | ❌ No | — | (use Dependabot cooldown + exact pins) | — |
 | [Terraform](docs/terraform.md#terraform) / [OpenTofu](docs/terraform.md#opentofu) | ❌ No | — | (use exact `=` pins + Dependabot²) | — |
 
 ---
@@ -133,6 +136,7 @@ The lockfile provides a partial mitigation — it pins exact resolved versions �
 | [Cargo](docs/rust.md#cargo-rust) | `^` (caret, implicit) | `1.0.0` `^1.0.0` `~1.0.0` `>=1.0.0` | `=1.0.0` | ✅ Yes — `--locked` | Use `=` prefix explicitly in `Cargo.toml` |
 | [Composer](docs/php.md#composer) | `^` (caret) | `^1.2.3` `~1.2.3` `>=1.0` `1.2.*` | `1.2.3` | ✅ Yes — `composer install` enforces it | Use bare version strings in `composer.json` |
 | [Bundler](docs/ruby.md#bundler) | `~>` (pessimistic) | `~> 7.1` `~> 7.1.3` `>= 7.1.0` | `7.1.3` | ✅ Yes — `BUNDLE_FROZEN=true` | Use bare version strings in `Gemfile` |
+| [NuGet (.NET)](docs/dotnet.md#nuget) | None (bare = minimum) | `*` `*-*` `[1.0,)` `[1.0, 2.0)` `1.2.3` (without lockfile) | `[1.2.3]` or bare with `packages.lock.json` | ✅ Yes — `--locked-mode` | Use `[x.y.z]` bracket notation; always enable `packages.lock.json` |
 | [Terraform](docs/terraform.md#terraform) / [OpenTofu](docs/terraform.md#opentofu) | `~>` (patch-only by default²) | `~> 5.0` `>= 5.0` `>= 5.0, < 6.0` | `= 5.31.0` | ✅ Yes — `.terraform.lock.hcl`; `-lockfile=readonly` | Use `= X.Y.Z` in `required_providers`; run `terraform providers lock` for multi-platform hashes |
 | [Helm](docs/helm.md) | None (user-specified, SemVer ranges accepted) | `^15.5.0` `~15.5` `>=15.0.0` `15.x.x` | `15.5.20` | ✅ Yes — `Chart.lock` digest; `helm dependency build` enforces it | Use bare exact versions in `Chart.yaml` `dependencies[].version`; never run `helm dependency update` in CI |
 | [Maven](docs/jvm.md#maven) | Soft requirement (exact unless overridden) | `[3.2,)` `[3.2,4.0)` `LATEST` `RELEASE` `3.2-SNAPSHOT` | `3.2.1` | ❌ No native lockfile³ | Pin every direct dep + transitive in `<dependencyManagement>`; enforce via `maven-enforcer-plugin` `banDynamicVersions` + `requirePluginVersions` |
@@ -174,6 +178,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contribution guide: how to f
 - [bundler-audit](https://github.com/rubysec/bundler-audit)
 - [Ruby Advisory Database](https://github.com/rubysec/ruby-advisory-db)
 - [ruby_audit](https://github.com/civisanalytics/ruby_audit)
+- [NuGet Documentation](https://learn.microsoft.com/en-us/nuget/)
+- [NuGet Version Ranges](https://learn.microsoft.com/en-us/nuget/concepts/package-versioning#version-ranges)
+- [NuGet Package Source Mapping](https://learn.microsoft.com/en-us/nuget/consume-packages/package-source-mapping)
+- [NuGet Lockfile (RestorePackagesWithLockFile)](https://learn.microsoft.com/en-us/nuget/consume-packages/package-references-in-project-files#locking-dependencies)
+- [Central Package Management](https://learn.microsoft.com/en-us/nuget/consume-packages/central-package-management)
+- [dotnet list package --vulnerable](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-list-package)
 - [Dependabot Options Reference](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference)
 - [Dependabot Cooldown Announcement](https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/)
 - [Harden-Runner on GitHub](https://github.com/step-security/harden-runner)
