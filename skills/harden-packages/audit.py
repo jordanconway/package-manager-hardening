@@ -118,6 +118,15 @@ def detect_ecosystems(root):
     ):
         detected.append("gradle")
 
+    # .NET / NuGet — project files may live in subdirectories
+    dotnet_files = [
+        f
+        for f in (list(r.rglob("*.csproj")) + list(r.rglob("*.fsproj")) + list(r.rglob("*.vbproj")))
+        if "bin" not in f.parts and "obj" not in f.parts
+    ]
+    if dotnet_files or (r / "packages.config").exists() or (r / "Directory.Packages.props").exists():
+        detected.append("dotnet")
+
     return detected
 
 
@@ -542,6 +551,98 @@ def audit_ruby(root):
     return findings
 
 
+def audit_dotnet(root):
+    r = Path(root)
+    findings = {}
+
+    # Lockfile — packages.lock.json is generated per-project and may live in subdirs
+    lock_files = [f for f in r.rglob("packages.lock.json") if "bin" not in f.parts and "obj" not in f.parts]
+    lock_exists = len(lock_files) > 0
+    findings["lockfile"] = {
+        "file": "packages.lock.json" if lock_exists else None,
+        "status": status(lock_exists),
+        "gitignored": is_gitignored(root, "packages.lock.json"),
+    }
+
+    # RestorePackagesWithLockFile opt-in (must be set; not the default)
+    project_files = [
+        f
+        for f in (list(r.rglob("*.csproj")) + list(r.rglob("*.fsproj")) + list(r.rglob("*.vbproj")))
+        if "bin" not in f.parts and "obj" not in f.parts
+    ]
+    build_props = r / "Directory.Build.props"
+    files_to_check = project_files + ([build_props] if build_props.exists() else [])
+    lock_opt_in = any(
+        grep(read(f), r"<RestorePackagesWithLockFile>\s*true\s*</RestorePackagesWithLockFile>", re.IGNORECASE)
+        for f in files_to_check
+    )
+    findings["lock_file_opt_in"] = {
+        "status": status(lock_opt_in),
+        "enabled": lock_opt_in,
+    }
+
+    # Floating/wildcard version pins in .csproj files and Directory.Packages.props
+    cpm_file = r / "Directory.Packages.props"
+    loose = []
+    for pf in project_files:
+        for line in read(pf).splitlines():
+            m = re.search(r'PackageReference\s+Include="([^"]+)"[^>]*Version="([^"]*)"', line, re.IGNORECASE)
+            if m:
+                pkg, ver = m.group(1), m.group(2)
+                if "*" in ver:
+                    loose.append(f"{pkg}: {ver}")
+                elif re.search(r"[\[(]", ver) and not re.fullmatch(r"\[\d[\d.]*\]", ver):
+                    loose.append(f"{pkg}: {ver}")
+    if cpm_file.exists():
+        for line in read(cpm_file).splitlines():
+            m = re.search(r'PackageVersion\s+Include="([^"]+)"[^>]*Version="([^"]*)"', line, re.IGNORECASE)
+            if m:
+                pkg, ver = m.group(1), m.group(2)
+                if "*" in ver:
+                    loose.append(f"{pkg}: {ver}")
+                elif re.search(r"[\[(]", ver) and not re.fullmatch(r"\[\d[\d.]*\]", ver):
+                    loose.append(f"{pkg}: {ver}")
+    findings["exact_pins"] = {
+        "status": status(len(loose) == 0),
+        "loose": loose[:20],
+        "loose_count": len(loose),
+    }
+
+    # Central Package Management
+    cpm_enabled = cpm_file.exists() and grep(
+        read(cpm_file),
+        r"<ManagePackageVersionsCentrally>\s*true\s*</ManagePackageVersionsCentrally>",
+        re.IGNORECASE,
+    )
+    findings["central_package_management"] = {
+        "status": status(bool(cpm_enabled)),
+        "enabled": bool(cpm_enabled),
+    }
+
+    # Package Source Mapping
+    nuget_config = r / "nuget.config"
+    if not nuget_config.exists():
+        nuget_config = r / "NuGet.Config"
+    source_mapping = nuget_config.exists() and grep(read(nuget_config), r"packageSourceMapping", re.IGNORECASE)
+    findings["source_mapping"] = {
+        "status": status(bool(source_mapping)),
+        "enabled": bool(source_mapping),
+    }
+
+    # CI patterns
+    wfs = workflow_files(root)
+    all_wf = "\n".join(wfs.values())
+    has_locked_mode = grep(all_wf, r"--locked-mode")
+    has_vuln_check = grep(all_wf, r"--vulnerable")
+    findings["ci"] = {
+        "locked_mode": has_locked_mode,
+        "vulnerability_check": has_vuln_check,
+        "status": status(has_locked_mode and has_vuln_check),
+    }
+
+    return findings
+
+
 def audit_terraform(root):
     r = Path(root)
     findings = {}
@@ -818,6 +919,7 @@ ECOSYSTEM_KEYS = {
     "terraform": "terraform",
     "maven": "maven",
     "gradle": "gradle",
+    "dotnet": "nuget",
 }
 
 
@@ -953,6 +1055,7 @@ def main():
         "rust": audit_rust,
         "php": audit_php,
         "ruby": audit_ruby,
+        "dotnet": audit_dotnet,
         "terraform": audit_terraform,
         "maven": audit_maven,
         "gradle": audit_gradle,
