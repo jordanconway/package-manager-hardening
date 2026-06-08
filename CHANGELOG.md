@@ -12,6 +12,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-08
+
+Third tagged release. Adds complete .NET / NuGet supply-chain hardening coverage — the most widely used ecosystem not previously documented — and routine dependency maintenance.
+
+### Added
+
+- New `.NET / NuGet` ecosystem coverage across all layers:
+  - [`docs/dotnet.md`](docs/dotnet.md): user-facing guide covering `packages.lock.json` opt-in (`RestorePackagesWithLockFile`), `--locked-mode` CI enforcement, bare-vs-bracket version pinning, Central Package Management (`Directory.Packages.props`), Package Source Mapping (`nuget.config`), `dotnet list package --vulnerable --include-transitive` as a CI gate, `global.json` SDK pinning, Dependabot config, and Harden-Runner endpoints.
+  - [`agents/AGENTS-dotnet.md`](agents/AGENTS-dotnet.md): mandatory AI agent rules — hash verification, 7-day cooldown, lockfile opt-in, exact-pin requirements, and a human-review checklist.
+  - [`tests/test_audit_dotnet.py`](tests/test_audit_dotnet.py): 26 unit tests covering all six `audit_dotnet()` checks (lockfile, lock-file opt-in, exact pins, Central Package Management, Package Source Mapping, CI patterns). Total suite: 278 tests.
+  - `skills/harden-packages/audit.py`: `detect_ecosystems()` gains `.csproj` / `.fsproj` / `.vbproj` detection; new `audit_dotnet()` function with six checks; `ECOSYSTEM_KEYS["dotnet"] = "nuget"`.
+  - `skills/harden-packages/SKILL.md`: nine interpretation notes, config templates (Directory.Build.props, nuget.config, CI commands, Dependabot entry, Harden-Runner endpoints), and a manual-checklist section.
+  - `README.md`: `.NET` row added to the ecosystem table, minimum-release-age matrix, and version-constraint support table; quick-start `curl` command; six NuGet reference links.
+
+### Changed
+
+- GitHub Actions pins bumped across all four workflow files:
+  - `actions/checkout`: v6.0.2 → v6.0.3 (PR #43)
+  - `astral-sh/setup-uv`: v8.1.0 → v8.2.0 (PR #43)
+  - `github/codeql-action` (init / analyze / upload-sarif): v4.35.5 → v4.36.2 (PRs #40, #43)
+  - `step-security/harden-runner`: v2.19.3 → v2.19.4 (PR #40)
+  - `lycheeverse/lychee-action`: comment sharpened from `# v2` → `# v2.8.0`; SHA unchanged (PR #43)
+- Dev dependency `hypothesis` bumped 6.152.4 → 6.155.1 (Dependabot PR #41).
+
 ## [0.2.0] - 2026-06-01
 
 Second tagged release. Major theme: closing two gaps in the AI-agent workflow — fabricated hashes when pinning, and unsafe auto-apply of badging-related work that needs human follow-through. Plus accumulated fuzzing, branch-protection, and badging infrastructure that landed on `main` between 0.1.0 and now.
@@ -107,5 +131,7 @@ Documented in [`SECURITY.md`](SECURITY.md):
 - `Maintained` Scorecard check is time-based and will resolve once the repository is 90 days old.
 - OpenSSF Best Practices badge: **Passing** tier awarded (project 12822).
 
-[Unreleased]: https://github.com/jordanconway/package-manager-hardening/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/jordanconway/package-manager-hardening/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/jordanconway/package-manager-hardening/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/jordanconway/package-manager-hardening/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jordanconway/package-manager-hardening/releases/tag/v0.1.0
