@@ -129,3 +129,47 @@ def test_dependabot_yaml_extension(tmp_path):
     result = audit.audit_dependabot(str(tmp_path), ["nodejs"])
     assert result["file"] is not None
     assert result["ecosystems"]["nodejs"]["status"] == "pass"
+
+
+# ---------------------------------------------------------------------------
+# uv ecosystem key satisfies python (lfreleng-actions feedback)
+# ---------------------------------------------------------------------------
+
+def test_uv_ecosystem_key_satisfies_python(tmp_path):
+    content = """\
+version: 2
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+"""
+    write_file(tmp_path, ".github/dependabot.yml", content)
+    result = audit.audit_dependabot(str(tmp_path), ["python"])
+    assert result["ecosystems"]["python"]["status"] == "pass"
+    assert result["ecosystems"]["python"]["ecosystem_key"] == "uv"
+    assert result["ecosystems"]["python"]["cooldown_default_days"] == 7
+
+
+def test_uv_ecosystem_without_cooldown_warns(tmp_path):
+    content = """\
+version: 2
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+"""
+    write_file(tmp_path, ".github/dependabot.yml", content)
+    result = audit.audit_dependabot(str(tmp_path), ["python"])
+    assert result["ecosystems"]["python"]["status"] == "warn"
+    assert result["ecosystems"]["python"]["ecosystem_key"] == "uv"
+
+
+def test_pip_key_still_satisfies_python(tmp_path):
+    write_file(tmp_path, ".github/dependabot.yml", DEPENDABOT_FULL)
+    result = audit.audit_dependabot(str(tmp_path), ["python"])
+    assert result["ecosystems"]["python"]["status"] == "pass"
+    assert result["ecosystems"]["python"]["ecosystem_key"] == "pip"

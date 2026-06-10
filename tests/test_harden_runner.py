@@ -100,3 +100,38 @@ def test_mixed_workflows_one_missing_hr(tmp_path):
     assert result["workflows"]["release.yml"]["status"] == "fail"
     # some have HR, some don't → warn (at least one present)
     assert result["status"] == "warn"
+
+
+# ---------------------------------------------------------------------------
+# Quoted YAML values (lfreleng-actions feedback)
+# ---------------------------------------------------------------------------
+
+def test_quoted_egress_policy_block_passes(tmp_path):
+    content = (
+        "jobs:\n  build:\n    steps:\n"
+        "      - uses: step-security/harden-runner@abc # v2\n"
+        "        with:\n"
+        "          egress-policy: 'block'\n"
+        "          disable-sudo: 'true'\n"
+        "          allowed-endpoints: >\n"
+        "            github.com:443\n"
+    )
+    make_workflow(tmp_path, "ci.yml", content)
+    result = audit.audit_harden_runner(str(tmp_path))
+    wf = result["workflows"]["ci.yml"]
+    assert wf["egress_policy"] == "block"
+    assert wf["disable_sudo"] is True
+    assert wf["status"] == "pass"
+
+
+def test_double_quoted_egress_policy_audit_warns(tmp_path):
+    content = (
+        "jobs:\n  build:\n    steps:\n"
+        "      - uses: step-security/harden-runner@abc # v2\n"
+        "        with:\n"
+        '          egress-policy: "audit"\n'
+    )
+    make_workflow(tmp_path, "ci.yml", content)
+    result = audit.audit_harden_runner(str(tmp_path))
+    assert result["workflows"]["ci.yml"]["egress_policy"] == "audit"
+    assert result["workflows"]["ci.yml"]["status"] == "warn"

@@ -96,6 +96,11 @@ def walk(node, path):
 
 def warn_reason(path, node):
     """Explain why a specific check is a warning, from the finding's own data."""
+    # An explicit note from audit.py is authoritative.
+    note = node.get("note")
+    if isinstance(note, str) and note:
+        return note
+
     segments = path.split(".")
 
     if segments[0] == "harden_runner":

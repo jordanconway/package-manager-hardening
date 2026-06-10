@@ -284,28 +284,42 @@ def audit_python(root):
             "note": "requirements.lock from pip-compile --generate-hashes expected",
         }
 
-    # Exact pins in pyproject.toml
+    # Exact pins in pyproject.toml. Scan only the dependency arrays —
+    # [project] dependencies, [project.optional-dependencies], and
+    # [dependency-groups] — never the whole [project] table: keys like
+    # authors = [{ email = "..." }] and requires-python must not be
+    # parsed as package specs.
     if (r / "pyproject.toml").exists():
         content = read(r / "pyproject.toml")
-        # Extract dependencies section lines
         loose = []
-        in_deps = False
+        section = None
+        in_array = False
         for line in content.splitlines():
-            if re.match(r"\[project\.dependencies\]|\[project\]", line):
-                in_deps = True
-            elif line.startswith("[") and in_deps:
-                in_deps = False
-            # requires-python is an interpreter constraint, not a package
-            # dependency — a bounded range there is recommended, not loose.
-            if re.match(r"\s*requires-python\s*=", line):
+            stripped = line.strip()
+            header = re.match(r"\[([^\]]+)\]\s*$", stripped)
+            if header:
+                section = header.group(1)
+                in_array = False
                 continue
-            if in_deps or "dependencies" in line:
-                # Look for lines that have package specs without ==
-                m = re.search(r'"([^"]+[><=!~][^"]*)"', line)
-                if m:
-                    spec = m.group(1)
-                    if not re.search(r"==", spec) and re.search(r"[><=~!]", spec):
-                        loose.append(spec)
+            if not in_array:
+                if section == "project" and re.match(r"dependencies\s*=\s*\[", stripped):
+                    in_array = True
+                elif section in ("project.optional-dependencies", "dependency-groups") and re.match(
+                    r"[\w.-]+\s*=\s*\[", stripped
+                ):
+                    in_array = True
+                if not in_array:
+                    continue
+            for spec in re.findall(r'"([^"]+)"', line) + re.findall(r"'([^']+)'", line):
+                # Loose = has a constraint operator but no exact == pin.
+                # Bare names (no constraint at all) are not flagged here.
+                if "==" not in spec and re.search(r"[><~!]", spec):
+                    loose.append(spec)
+            # Array ends when a ] appears outside quoted strings (extras
+            # markers like "requests[socks]>=2" must not end it early).
+            unquoted = re.sub(r'"[^"]*"', "", re.sub(r"'[^']*'", "", line))
+            if "]" in unquoted:
+                in_array = False
         findings["exact_pins"] = {
             "status": status(len(loose) == 0),
             "loose": loose[:20],
@@ -324,17 +338,47 @@ def audit_python(root):
             "status": status(bool(exclude_newer) and require_hashes and verify_hashes),
         }
 
-    # CI frozen install
+    # CI frozen install — three states:
+    #   pass: frozen installs found and no unfrozen ones
+    #   fail: at least one install command without the frozen/hashes flag
+    #   warn: no install commands at all in workflow files — installs may
+    #         happen inside reusable/composite actions this file-based scan
+    #         cannot see into; verify the frozen flag there manually.
     wfs = workflow_files(root)
     if manager == "uv":
-        pattern = r"uv sync.*--frozen|--frozen.*uv sync"
+        install_re = r"\buv\s+sync\b"
+        frozen_re = r"--frozen"
     else:
-        pattern = r"pip install.*--require-hashes"
-    found_in = [name for name, content in wfs.items() if grep(content, pattern)]
+        install_re = r"\bpip\s+install\b"
+        frozen_re = r"--require-hashes"
+    found_in = []
+    unfrozen_in = []
+    for name, content in wfs.items():
+        for line in content.splitlines():
+            if line.lstrip().startswith("#") or not re.search(install_re, line):
+                continue
+            if re.search(frozen_re, line):
+                if name not in found_in:
+                    found_in.append(name)
+            elif name not in unfrozen_in:
+                unfrozen_in.append(name)
+    if unfrozen_in:
+        ci_status = "fail"
+    elif found_in:
+        ci_status = "pass"
+    else:
+        ci_status = "warn"
     findings["ci_frozen_install"] = {
-        "status": status(bool(found_in)),
+        "status": ci_status,
         "found_in": found_in,
+        "unfrozen_in": unfrozen_in,
     }
+    if ci_status == "warn":
+        findings["ci_frozen_install"]["note"] = (
+            "No install commands found in workflow files. If installs run inside "
+            "reusable or composite actions, this file-based scan cannot see them — "
+            "verify the frozen/hash-checked install flag inside those actions."
+        )
 
     return findings
 
@@ -926,6 +970,13 @@ ECOSYSTEM_KEYS = {
     "dotnet": "nuget",
 }
 
+# Alternative Dependabot ecosystem keys that also satisfy a detected
+# ecosystem — e.g. uv-managed Python repos use `package-ecosystem: "uv"`,
+# not "pip".
+ECOSYSTEM_ALT_KEYS = {
+    "python": ["uv"],
+}
+
 
 def audit_dependabot(root, detected_ecosystems):
     r = Path(root)
@@ -945,7 +996,12 @@ def audit_dependabot(root, detected_ecosystems):
 
     eco_findings = {}
     for eco in detected_ecosystems:
-        key = ECOSYSTEM_KEYS.get(eco, eco)
+        candidate_keys = [ECOSYSTEM_KEYS.get(eco, eco)] + ECOSYSTEM_ALT_KEYS.get(eco, [])
+        key = candidate_keys[0]
+        for candidate in candidate_keys:
+            if grep(content, rf'package-ecosystem:\s*["\']?{re.escape(candidate)}["\']?'):
+                key = candidate
+                break
         present = grep(content, rf'package-ecosystem:\s*["\']?{re.escape(key)}["\']?')
         if present:
             # Check for cooldown block — look for cooldown: within ~10 lines of this ecosystem entry
@@ -996,7 +1052,11 @@ def audit_harden_runner(root):
     for name, content in wfs.items():
         has_hr = grep(content, r"harden-runner")
         egress = find_value(content, r"egress-policy:\s*(\S+)")
-        disable_sudo = grep(content, r"disable-sudo:\s*true")
+        if egress:
+            # YAML values may be quoted ('block', "audit") — normalise so
+            # the pass/warn classification below compares bare words.
+            egress = egress.strip("\"'")
+        disable_sudo = grep(content, r"disable-sudo:\s*[\"']?true[\"']?")
         has_endpoints = grep(content, r"allowed-endpoints")
 
         if not has_hr:
