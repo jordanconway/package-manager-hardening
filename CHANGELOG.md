@@ -12,6 +12,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-10
+
+Fourth tagged release. Major theme: the audit becomes a product — a reusable GitHub Action any repository can adopt as a CI check — hardened by fixes from its first real-world runs. Plus three new cross-cutting docs (transitive coverage, Renovate, lockfile integrity) and a new mandatory package-identity rule for AI agents.
+
+### Added
+
+- **Reusable hardening-audit GitHub Action** ([`action.yml`](action.yml) at the repo root, PR #51). Any repository can now run the audit as a CI check: `uses: jordanconway/package-manager-hardening@<commit-sha>` after checkout. Inputs: `path` (default `"."`), `warn-only` (default `"false"`). Outputs: `json-path` / `report-path` in the runner temp directory. Both underlying scripts are Python-stdlib-only, so the action installs nothing and adds no egress requirements beyond checkout. Documented in the README Quick start ("For CI") and [docs/skill.md](docs/skill.md#running-the-audit-in-ci-no-llm-required); a vendored-snippet alternative is documented for policies that forbid third-party actions. **This release tag is the first whose commit contains the action** — pin it by resolving the tag's commit SHA.
+- New [`skills/harden-packages/report.py`](skills/harden-packages/report.py) (PR #51): renders audit.py JSON as a markdown findings table with per-finding remediation hints and doc links, and exits non-zero on any `fail`/`missing` finding (the CI gate). `warn` and `n/a` never gate. A "Warnings explained" section derives a reason for every ⚠️ from the finding's own data — audit-mode Harden-Runner workflows cite the documented CodeQL/Scorecard exceptions, cooldown-less Dependabot entries explain the missing soak time, and findings carrying an explicit `note` field surface it verbatim. 37 unit tests.
+- New self-audit workflow [`.github/workflows/self-audit.yml`](.github/workflows/self-audit.yml) (PR #51): dogfoods the action via `uses: ./` on every PR, push to `main`, and weekly — any hardening regression in this repo now fails CI with the fix proposed in the job summary.
+- New [`docs/transitive.md`](docs/transitive.md) (PR #45): which controls reach transitive dependencies, the update-window gap and its mitigations, the Go module proxy note, and a 15-ecosystem × 3-control summary matrix. Linked from the README intro.
+- New [`docs/renovate.md`](docs/renovate.md) (PR #48): Renovate's `minimumReleaseAge` as the PR-level cooldown for every ecosystem the transitive matrix marks ❌ for native age gates (Maven, Gradle, Go, Composer, Bundler, NuGet, Helm, Terraform). Includes `internalChecksFilter: "strict"`, per-manager scoping, a Dependabot comparison table, and limitations.
+- New [`docs/lockfile-integrity.md`](docs/lockfile-integrity.md) (PR #49): the lockfile-tampering / `resolved`-URL-injection attack class, a per-format exposure table (URL-embedding lockfiles vs registry-derived and transparency-log formats), and five mitigations — `lockfile-lint` in CI, `npm audit signatures`, Harden-Runner egress block as the runtime backstop, review discipline (CODEOWNERS on lockfiles), and format choice. Propagated to docs/nodejs.md, AGENTS-nodejs.md, and the SKILL.md checklist.
+- New mandatory **"Never Guess" package-identity sections in all 12 `agents/AGENTS-*.md` files** (PR #50), parallel to the existing hash rule: verify the exact package name/coordinate/namespace against the registry in the current session before adding it — typosquatting and slopsquatting (names language models tend to invent) are actively exploited. Each section is tailored to its ecosystem's trust anchors (Maven groupId domain verification, NuGet reserved prefixes, Go module paths as repo addresses, Docker/Helm/Terraform publisher badges, GitHub Actions owner verification). Matching bullet in SKILL.md Important notes.
+- New [`.npmrc`](.npmrc) (PR #46): this repo now dogfoods its own docs/nodejs.md template (`save-exact`, `minimum-release-age=10080`, `audit`, `fund`) — closing the one genuine `fail` its own audit reported against it.
+- `npm audit signatures` guidance in docs/nodejs.md, AGENTS-nodejs.md, and the SKILL.md checklist (PR #47): registry signature + provenance attestation verification for the full tree, complementing lockfile hashes (a tampered lockfile entry carries a matching hash for the substituted artifact; only signature verification catches it).
+
+### Fixed
+
+- Real-world audit fixes from running the action against `lfreleng-actions/dependamerge` and `lfreleng-actions/lftools-uv` (PR #52):
+  - Dependabot `uv` ecosystem entries now satisfy the python check (`ECOSYSTEM_ALT_KEYS`); previously uv-first repos with 7-day cooldowns were reported as "python missing".
+  - `authors` / `maintainers` inline tables in `[project]` are no longer parsed as package specs (the `", email = "` artifact); the exact_pins parser now tracks dependency arrays explicitly and handles extras brackets (`"requests[socks]>=2"`).
+  - `ci_frozen_install` is three-state: `fail` only on an actual unfrozen install command (listed in `unfrozen_in`), `pass` on frozen installs, `warn` with an explanatory note when installs are delegated to reusable/composite actions that file-based scanning cannot see into.
+  - Quoted YAML values normalised: `egress-policy: 'block'` was misclassified as `warn`; `disable-sudo: 'true'` was not detected.
+- docs/nodejs.md showed `npm install --foreground-scripts` as the provenance verification command; corrected to `npm audit signatures` (PR #47).
+- audit.py no longer flags `requires-python = ">=3.10,<3.15"` as a loose dependency pin — it is an interpreter constraint, and bounding it is the recommended configuration (PR #46).
+- docs/dependabot.md claimed Dependabot cooldown supports Helm; Dependabot does not update Helm chart dependencies at all (now consistent with the README matrix) (PR #48).
+
 ## [0.3.0] - 2026-06-08
 
 Third tagged release. Adds complete .NET / NuGet supply-chain hardening coverage — the most widely used ecosystem not previously documented — and routine dependency maintenance.
@@ -131,7 +158,8 @@ Documented in [`SECURITY.md`](SECURITY.md):
 - `Maintained` Scorecard check is time-based and will resolve once the repository is 90 days old.
 - OpenSSF Best Practices badge: **Passing** tier awarded (project 12822).
 
-[Unreleased]: https://github.com/jordanconway/package-manager-hardening/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/jordanconway/package-manager-hardening/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/jordanconway/package-manager-hardening/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/jordanconway/package-manager-hardening/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jordanconway/package-manager-hardening/releases/tag/v0.1.0
