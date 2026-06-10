@@ -94,6 +94,11 @@ configured number of days. But the transitive packages that `express@4.19.2` int
 not individually subject to cooldown. Dependabot cooldown is a useful secondary gate, not a
 replacement for a native resolver-level implementation.
 
+For the ❌ rows above, [Renovate's `minimumReleaseAge`](renovate.md) provides the same PR-level
+gate as Dependabot cooldown but works uniformly across all of Renovate's supported managers —
+including Maven, Gradle, NuGet, Composer, Bundler, Helm, and Terraform. It shares the same
+direct-dependencies-only limitation.
+
 ## The update window
 
 The most important residual gap across all ecosystems is the moment when you merge a dependency
@@ -114,6 +119,9 @@ published yesterday.
 
 **Mitigations for ecosystems without native cooldown:**
 
+0. **Use [Renovate](renovate.md) with `minimumReleaseAge`** so the direct update itself is
+   age-gated at the PR level — this shrinks (but does not eliminate) the window, since the
+   transitives a 7-day-old release introduces have usually also had time to be vetted.
 1. **Review lockfile diffs carefully on every dependency update PR.** A new transitive package
    appearing in `go.sum`, `Gemfile.lock`, `composer.lock`, or `packages.lock.json` is a signal
    worth investigating — check when it was published and whether it was previously a transitive
