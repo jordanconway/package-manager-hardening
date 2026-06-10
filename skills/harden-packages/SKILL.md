@@ -726,6 +726,7 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
 - Bun ≥ 1.3: is `minimumReleaseAge` set in `bunfig.toml`?
 - pnpm: is `onlyBuiltDependencies` (allowlist) or `ignoredBuiltDependencies` configured?
 - Does CI use `npm ci` / `pnpm install --frozen-lockfile` / `yarn install --immutable` / `bun install --frozen-lockfile`?
+- npm: does CI run `npm audit signatures` after install? It verifies registry signatures and provenance attestations for the full tree — catching tampered artifacts that lockfile hash verification cannot (the lockfile hash is recorded *from* the artifact, so a substituted artifact carries a matching hash).
 
 ### Python (pip / uv)
 

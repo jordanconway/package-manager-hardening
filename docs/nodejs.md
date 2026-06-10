@@ -87,9 +87,14 @@ npm audit                      # check for known vulnerabilities
 npm audit fix                  # auto-fix where possible
 npm audit --audit-level=high   # fail CI only on high/critical
 
-# Verify package provenance (requires registry support)
-npm install --foreground-scripts
+# Verify registry signatures and provenance attestations for every
+# package in the tree (direct and transitive). Fails if any installed
+# artifact has a missing or invalid signature, or if a package that
+# publishes provenance has an attestation that doesn't verify.
+npm audit signatures
 ```
+
+`npm audit signatures` complements the lockfile's integrity hashes: the lockfile proves the artifact didn't change since it was locked, while signature verification proves the artifact is the one the registry actually published. A tampered lockfile entry pointing at a look-alike artifact passes hash verification (the hash was recorded from the tampered artifact) but fails signature verification. Run it in CI after `npm ci`.
 
 ### Workspace / Monorepo
 
