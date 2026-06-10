@@ -24,6 +24,17 @@ python {SKILL_DIR}/verify_hash.py oci <image>:<tag>          # → sha256: diges
 
 If you cannot verify a digest with any of the above, **stop and ask the user**. Do not insert a placeholder, a truncated digest, or a "likely correct" value.
 
+## Image Names: Never Guess
+
+**AI agents must never reference an image whose exact name and namespace they have not verified against the registry in the current session.** A guessed image name either fails to resolve or resolves to a look-alike under a squatted namespace — user namespaces mimicking official images are a known Docker Hub attack pattern.
+
+Before referencing any new image:
+
+1. Verify the exact name on Docker Hub (or the relevant registry) and confirm the publisher: prefer Docker Official Images (`docker.io/library/*`), Verified Publisher, or Sponsored OSS badges. For other registries (`ghcr.io`, `quay.io`), confirm the owning organisation is the project's real organisation.
+2. Treat as red flags: a user namespace serving what looks like an official image (`someuser/node` vs `library/node`), a recently created repository with few pulls, and image names differing from popular images by one character.
+
+If the lookup is ambiguous or the image cannot be confidently identified, **stop and ask the user** — do not choose between similar names on intuition.
+
 ## Base Image Rules
 
 **Always pin base images to their immutable digest.** Never use a mutable tag alone:

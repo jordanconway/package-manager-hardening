@@ -39,6 +39,17 @@ curl -fsSL "https://api.nuget.org/v3/registration5-semver2/<pkg>/index.json" | \
 If you cannot verify a hash with any of the above, **stop and ask the user**. Do not insert
 a placeholder or a "likely correct" value.
 
+## Package Names: Never Guess
+
+**AI agents must never add a package whose exact ID they have not verified against NuGet in the current session.** Typosquatting and slopsquatting — attackers registering names that language models tend to invent — are actively exploited vectors. A guessed ID either fails to resolve or resolves to a malicious look-alike.
+
+Before adding any new package:
+
+1. Verify the exact ID and confirm it is the package you intend: `dotnet package search <package> --exact-match` or check `https://www.nuget.org/packages/<package>` — the description, linked repository, and owners must match the stated purpose. Prefer packages whose prefix is reserved (blue checkmark on nuget.org).
+2. Treat as red flags: a very recent first release, an ID one or two characters off a popular package or differing only in segment order (`Microsoft.Extensions.Logging` vs look-alikes), a missing or unrelated repository link, and an unreserved prefix mimicking a well-known vendor.
+
+If the lookup is ambiguous or the package cannot be confidently identified, **stop and ask the user** — do not choose between similar IDs on intuition.
+
 ## Dependency Rules
 
 **Always pin exact versions** in `.csproj` files and `Directory.Packages.props`. Prefer

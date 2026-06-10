@@ -27,6 +27,17 @@ python {SKILL_DIR}/verify_hash.py gh-action <owner>/<repo> <ref>       # for git
 
 If you cannot verify a hash with any of the above, **stop and ask the user**. Do not insert a placeholder or a "likely correct" value.
 
+## Package Names: Never Guess
+
+**AI agents must never add a package whose exact `vendor/name` they have not verified against Packagist in the current session.** Typosquatting and slopsquatting — attackers registering names that language models tend to invent — are actively exploited vectors, and the vendor segment is as much a part of the identity as the package name.
+
+Before adding any new package:
+
+1. Verify the exact `vendor/name` and confirm it is the package you intend: `composer show --available <vendor>/<package>` or check `https://packagist.org/packages/<vendor>/<package>` — the description and linked repository must match the stated purpose.
+2. Treat as red flags: a vendor name one or two characters off a well-known vendor, a very recent first release, a missing or unrelated repository link, and abandoned-package warnings on the Packagist page.
+
+If the lookup is ambiguous or the package cannot be confidently identified, **stop and ask the user** — do not choose between similar names on intuition.
+
 ## Dependency Rules
 
 **Always pin exact versions** in `composer.json`. Never use `^`, `~`, `>=`, or wildcard constraints for production dependencies:
