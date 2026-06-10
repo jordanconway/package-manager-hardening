@@ -84,6 +84,7 @@ cp -r skills/harden-packages ~/.claude/skills/
 |-----|--------|
 | [Transitive Dependencies](docs/transitive.md) | Which controls cover indirect dependencies, the update-window gap, per-ecosystem coverage matrix |
 | [Dependabot](docs/dependabot.md) | Cooldown configuration per ecosystem, semver-level delay, known Terraform provider bug |
+| [Renovate](docs/renovate.md) | `minimumReleaseAge` for every package manager — PR-level cooldown for the ecosystems with no native age gate (Maven, Gradle, Go, Composer, Bundler, NuGet, Helm, Terraform) |
 | [Harden-Runner](docs/harden-runner.md) | Runtime CI egress control, audit → block mode, per-ecosystem `allowed-endpoints` |
 | [Lockfile Integrity](docs/lockfile-integrity.md) | Lockfile tampering / `resolved`-URL injection, lockfile-lint, signature verification, per-format exposure table |
 | [GitHub Actions](docs/github-actions.md) | SHA pinning, runner image pinning, least-privilege permissions, expression injection, OIDC, CODEOWNERS, `persist-credentials: false`, workflow concurrency, zizmor static analysis, CodeQL SAST, fuzzing, dependency-review on PRs, OpenSSF Scorecard, `SECURITY.md` + private vulnerability reporting |
@@ -117,6 +118,8 @@ cp -r skills/harden-packages ~/.claude/skills/
 | [Bundler](docs/ruby.md#bundler) | ❌ No | — | (use Dependabot + exact pins) | — |
 | [NuGet (.NET)](docs/dotnet.md#nuget) | ❌ No | — | (use Dependabot cooldown + exact pins) | — |
 | [Terraform](docs/terraform.md#terraform) / [OpenTofu](docs/terraform.md#opentofu) | ❌ No | — | (use exact `=` pins + Dependabot²) | — |
+
+For every ❌ row, [Renovate's `minimumReleaseAge`](docs/renovate.md) provides the equivalent gate at the PR level — it works across all of Renovate's supported package managers, unlike the native mechanisms above which are resolver-level and ecosystem-specific.
 
 ---
 

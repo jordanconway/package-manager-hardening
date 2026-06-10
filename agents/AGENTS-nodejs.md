@@ -101,6 +101,10 @@ Run a vulnerability audit whenever dependencies change:
 npm audit --audit-level=moderate
 pnpm audit --audit-level=moderate
 yarn npm audit
+
+# npm: also verify registry signatures + provenance attestations for the
+# full tree (catches tampered artifacts that hash verification cannot)
+npm audit signatures
 ```
 
 If the audit reports vulnerabilities, do not merge the change until they are resolved or explicitly acknowledged with a documented justification.
