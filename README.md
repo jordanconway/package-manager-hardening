@@ -59,6 +59,19 @@ curl -o AGENTS.md https://raw.githubusercontent.com/jordanconway/package-manager
 cp -r skills/harden-packages ~/.claude/skills/
 ```
 
+**For CI:** run the audit as a GitHub Actions check in any repo. The action is dependency-free (Python stdlib only), publishes a findings table with remediation hints to the job summary, and fails the job on hardening gaps:
+
+```yaml
+# After your actions/checkout step. Resolve <commit-sha> from the release tag:
+#   gh api repos/jordanconway/package-manager-hardening/commits/<tag> --jq .sha
+- uses: jordanconway/package-manager-hardening@<commit-sha> # vX.Y.Z
+  with:
+    path: "."          # repository root to audit (default)
+    warn-only: "false" # "true" reports findings without failing the job
+```
+
+Start with `warn-only: "true"`, fix the reported findings, then drop it to make the audit a required check. See [docs/skill.md](docs/skill.md#running-the-audit-in-ci-no-llm-required) for details and outputs.
+
 ---
 
 ## Contents

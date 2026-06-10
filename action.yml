@@ -1,0 +1,84 @@
+# SPDX-FileCopyrightText: 2026 The Linux Foundation
+#
+# SPDX-License-Identifier: MIT
+
+# Composite action: run the package-manager hardening audit against the
+# consumer's checked-out repository and publish findings to the job summary.
+#
+# Both underlying scripts (skills/harden-packages/audit.py and report.py) are
+# Python-stdlib-only, so the action installs nothing and needs no egress
+# beyond what the consumer's own checkout already required. python3 must be
+# on PATH (true for GitHub-hosted ubuntu-* and macos-* runners).
+#
+# Usage (in the consumer repo, after actions/checkout):
+#
+#   - uses: jordanconway/package-manager-hardening@<commit-sha>  # vX.Y.Z
+#     with:
+#       path: .            # optional, default "."
+#       warn-only: "false" # optional; "true" reports without failing the job
+#
+# Pin to a full commit SHA (resolve with:
+#   gh api repos/jordanconway/package-manager-hardening/commits/<tag> --jq .sha
+# ) — never a mutable tag or branch.
+
+name: "Package Manager Hardening Audit"
+description: >-
+  Audit package manager security configuration — lockfiles, exact version
+  pinning, minimum release age, Dependabot cooldowns, Harden-Runner coverage —
+  and fail the job with remediation hints when hardening gaps are found.
+author: "The Linux Foundation"
+
+branding:
+  icon: "shield"
+  color: "green"
+
+inputs:
+  path:
+    description: "Path to the repository root to audit (relative to the workspace)."
+    required: false
+    default: "."
+  warn-only:
+    description: 'Set to "true" to publish the report without failing the job on findings.'
+    required: false
+    default: "false"
+
+outputs:
+  json-path:
+    description: "Absolute path to the raw audit findings JSON (in the runner temp directory)."
+    value: ${{ steps.audit.outputs.json-path }}
+  report-path:
+    description: "Absolute path to the rendered markdown report (in the runner temp directory)."
+    value: ${{ steps.audit.outputs.report-path }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: audit
+      shell: bash
+      # Inputs are passed via env, not interpolated into the script body
+      # (zizmor: template-injection).
+      env:
+        AUDIT_PATH: ${{ inputs.path }}
+        WARN_ONLY: ${{ inputs.warn-only }}
+      run: |
+        audit_json="$RUNNER_TEMP/package-hardening-audit.json"
+        report_md="$RUNNER_TEMP/package-hardening-report.md"
+
+        python3 "$GITHUB_ACTION_PATH/skills/harden-packages/audit.py" \
+          --path "$AUDIT_PATH" --pretty > "$audit_json"
+
+        flags=()
+        if [ "$WARN_ONLY" = "true" ]; then
+          flags+=(--warn-only)
+        fi
+
+        gate=0
+        python3 "$GITHUB_ACTION_PATH/skills/harden-packages/report.py" \
+          "${flags[@]}" "$audit_json" > "$report_md" || gate=$?
+
+        cat "$report_md" >> "$GITHUB_STEP_SUMMARY"
+        cat "$report_md"
+
+        echo "json-path=$audit_json" >> "$GITHUB_OUTPUT"
+        echo "report-path=$report_md" >> "$GITHUB_OUTPUT"
+        exit "$gate"

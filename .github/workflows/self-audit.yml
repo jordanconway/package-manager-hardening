@@ -1,0 +1,55 @@
+# SPDX-FileCopyrightText: 2026 The Linux Foundation
+#
+# SPDX-License-Identifier: MIT
+
+# Dogfooding: run this repo's own audit action (action.yml at the repo root)
+# against this repo and fail if any hardening regression appears (a workflow
+# added without harden-runner, a dependency ecosystem missing a Dependabot
+# cooldown, a loose version pin...). The findings table plus recommended
+# changes land in the job summary, so a failing PR check shows exactly what
+# to fix and links the relevant doc.
+#
+# `uses: ./` exercises the same composite action consumers reference as
+# `jordanconway/package-manager-hardening@<sha>`. The underlying scripts are
+# stdlib-only — no package installation step, which keeps the egress
+# allowlist down to what checkout itself needs.
+
+name: Self-audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "23 8 * * 1" # weekly, Monday 08:23 UTC — catches drift between PRs
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  self-audit:
+    name: Audit this repo with audit.py
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: block
+          disable-sudo: true
+          allowed-endpoints: >
+            api.github.com:443
+            github.com:443
+            objects.githubusercontent.com:443
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      # Gate: the action exits 1 on any "fail"/"missing" finding. The summary
+      # is written before the gate fires so failures are always explained.
+      - name: Run audit and publish findings
+        uses: ./
