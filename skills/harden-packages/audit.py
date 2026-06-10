@@ -295,6 +295,10 @@ def audit_python(root):
                 in_deps = True
             elif line.startswith("[") and in_deps:
                 in_deps = False
+            # requires-python is an interpreter constraint, not a package
+            # dependency — a bounded range there is recommended, not loose.
+            if re.match(r"\s*requires-python\s*=", line):
+                continue
             if in_deps or "dependencies" in line:
                 # Look for lines that have package specs without ==
                 m = re.search(r'"([^"]+[><=!~][^"]*)"', line)

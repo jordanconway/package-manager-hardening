@@ -89,6 +89,26 @@ def test_exact_pins_loose_detected(tmp_path):
     assert len(result["exact_pins"]["loose"]) > 0
 
 
+def test_requires_python_not_flagged_as_loose_pin(tmp_path):
+    # requires-python is an interpreter constraint, not a dependency;
+    # a bounded range there is the recommended configuration.
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nrequires-python = ">=3.10,<3.15"\ndependencies = ["requests==2.31.0"]\n'
+    )
+    result = audit.audit_python(str(tmp_path))
+    assert result["exact_pins"]["status"] == "pass"
+    assert result["exact_pins"]["loose"] == []
+
+
+def test_requires_python_skipped_but_loose_deps_still_flagged(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nrequires-python = ">=3.10,<3.15"\ndependencies = ["requests>=2.0.0"]\n'
+    )
+    result = audit.audit_python(str(tmp_path))
+    assert result["exact_pins"]["status"] == "fail"
+    assert result["exact_pins"]["loose"] == ["requests>=2.0.0"]
+
+
 # ---------------------------------------------------------------------------
 # UV config
 # ---------------------------------------------------------------------------
