@@ -26,6 +26,17 @@ python {SKILL_DIR}/verify_hash.py oci <registry>/<image>:<tag>
 
 If you cannot verify a digest with any of the above, **stop and ask the user**. Do not insert a placeholder or a "likely correct" value.
 
+## Chart Names: Never Guess
+
+**AI agents must never add a chart whose exact name and repository they have not verified in the current session.** A guessed chart name or repository URL either fails to resolve or resolves to a look-alike — chart identity is the pair (repository URL, chart name), not the name alone.
+
+Before adding any new chart dependency:
+
+1. Verify the chart on <https://artifacthub.io/> and confirm the publisher: prefer charts with the Verified Publisher and Official badges, and confirm the repository URL matches the project's documented one.
+2. Treat as red flags: a repository URL differing from the documented one, a chart republished under an unfamiliar repository, and a very recent first release of a supposedly established chart.
+
+If the lookup is ambiguous or the chart cannot be confidently identified, **stop and ask the user** — do not choose between similar charts on intuition.
+
 ## Dependency Rules
 
 **Always pin exact chart versions** in `Chart.yaml`. Never use `^`, `~`, `>=`, `x` wildcards, or bare major/minor strings:

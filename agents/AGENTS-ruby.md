@@ -27,6 +27,17 @@ python {SKILL_DIR}/verify_hash.py gh-action <owner>/<repo> <ref>  # for git-sour
 
 If you cannot verify a hash with any of the above, **stop and ask the user**. Do not insert a placeholder or a "likely correct" value.
 
+## Gem Names: Never Guess
+
+**AI agents must never add a gem whose exact name they have not verified against RubyGems in the current session.** Typosquatting and slopsquatting — attackers registering names that language models tend to invent — are actively exploited vectors. A guessed name either fails to resolve or resolves to a malicious look-alike.
+
+Before adding any new gem:
+
+1. Verify the exact name and confirm it is the gem you intend: `gem info -r <gem>` or check `https://rubygems.org/gems/<gem>` — the description and linked repository must match the stated purpose.
+2. Treat as red flags: a very recent first release, a name one or two characters off a popular gem (hyphen/underscore swaps are a classic RubyGems squat), a missing or unrelated repository link, and low download counts for a supposedly well-known gem.
+
+If the lookup is ambiguous or the gem cannot be confidently identified, **stop and ask the user** — do not choose between similar names on intuition.
+
 ## Dependency Rules
 
 **Always pin exact versions** in `Gemfile`. Never use `~>`, `>=`, or open range constraints for production dependencies:

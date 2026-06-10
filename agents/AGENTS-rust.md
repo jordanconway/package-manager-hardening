@@ -27,6 +27,17 @@ python {SKILL_DIR}/verify_hash.py gh-action <owner>/<repo> <ref>  # for git-sour
 
 If you cannot verify a hash with any of the above, **stop and ask the user**. Do not insert a placeholder or a "likely correct" value.
 
+## Crate Names: Never Guess
+
+**AI agents must never add a crate whose exact name they have not verified against crates.io in the current session.** Typosquatting and slopsquatting — attackers registering names that language models tend to invent — are actively exploited vectors. A guessed name either fails to resolve or resolves to a malicious look-alike.
+
+Before adding any new crate:
+
+1. Verify the exact name and confirm it is the crate you intend: check `https://crates.io/crates/<crate>` (or `curl -fsSL https://crates.io/api/v1/crates/<crate> | jq '{name: .crate.name, description: .crate.description, repository: .crate.repository}'`) — the description and linked repository must match the stated purpose.
+2. Treat as red flags: a very recent first release, a name differing from a popular crate by a hyphen/underscore swap or one character, a missing or unrelated repository link, and low download counts for a supposedly well-known crate.
+
+If the lookup is ambiguous or the crate cannot be confidently identified, **stop and ask the user** — do not choose between similar names on intuition.
+
 ## Dependency Rules
 
 **Always pin exact versions** using the `=` operator in `Cargo.toml`. Never use bare version strings, `>=`, or `~` ranges for production dependencies:

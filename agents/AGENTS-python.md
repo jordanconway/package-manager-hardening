@@ -28,6 +28,17 @@ python {SKILL_DIR}/verify_hash.py pypi <pkg> <version> --sdist    # sdist only
 
 If you cannot verify a hash with any of the above, **stop and ask the user**. Do not insert a placeholder or a "likely correct" value.
 
+## Package Names: Never Guess
+
+**AI agents must never add a dependency whose exact name they have not verified against PyPI in the current session.** Typosquatting and slopsquatting — attackers registering names that language models tend to invent — are actively exploited vectors on PyPI. A guessed name either fails to resolve or resolves to a malicious look-alike.
+
+Before adding any new package:
+
+1. Verify the exact name and confirm it is the package you intend: `curl -fsSL https://pypi.org/pypi/<package>/json | jq '{name: .info.name, summary: .info.summary, urls: .info.project_urls}'` — the summary and linked repository must match the stated purpose. Note that PyPI normalises names (`-`, `_`, and `.` are interchangeable), so similar-looking names can be distinct packages.
+2. Treat as red flags: a very recent first release, a name one or two characters off a popular package (`request` vs `requests`), a missing or unrelated repository link, and import-name-vs-package-name guesses (the import `yaml` is the package `PyYAML`, not `yaml`).
+
+If the lookup is ambiguous or the package cannot be confidently identified, **stop and ask the user** — do not choose between similar names on intuition.
+
 ## Package Manager
 
 This project uses: <!-- uv | pip+pip-tools — delete as appropriate -->

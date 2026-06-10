@@ -26,6 +26,17 @@ python {SKILL_DIR}/verify_hash.py npm <package> <version>    # → sha512-... SR
 
 If you cannot verify a hash with any of the above, **stop and ask the user**. Do not insert a placeholder or a "likely correct" value.
 
+## Package Names: Never Guess
+
+**AI agents must never add a dependency whose exact name they have not verified against the registry in the current session.** Typosquatting and slopsquatting — attackers registering names that language models tend to invent — are actively exploited vectors. A guessed name either fails to resolve or resolves to a malicious look-alike.
+
+Before adding any new package:
+
+1. Verify the exact name on the registry and confirm it is the package you intend: `npm view <package> name description repository.url time` — the description and linked repository must match the stated purpose.
+2. Treat as red flags: a very recent first publish date, a name one or two characters off a popular package, a missing or unrelated repository link, and low download counts for a supposedly well-known package.
+
+If the lookup is ambiguous or the package cannot be confidently identified, **stop and ask the user** — do not choose between similar names on intuition.
+
 ## Package Manager
 
 This project uses: <!-- npm | pnpm | yarn | bun — delete as appropriate -->

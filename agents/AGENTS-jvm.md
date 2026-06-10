@@ -25,6 +25,17 @@ python {SKILL_DIR}/verify_hash.py maven <group>:<artifact>:<version>  # Maven Ce
 
 If you cannot verify a checksum with any of the above, **stop and ask the user**. Do not insert a placeholder or a "likely correct" value.
 
+## Coordinates: Never Guess
+
+**AI agents must never add a dependency whose exact `groupId:artifactId` they have not verified against Maven Central in the current session.** A guessed coordinate either fails to resolve or resolves to a look-alike. The `groupId` is the trust anchor — Sonatype verifies domain ownership for it, so a familiar `artifactId` under an unfamiliar `groupId` is a classic squat.
+
+Before adding any new coordinate:
+
+1. Verify the exact `groupId:artifactId` on <https://central.sonatype.com/> and confirm the description, linked source repository, and publisher match the stated purpose.
+2. Treat as red flags: a `groupId` that does not match the project's known domain (`com.fasterxml.jackson.core` is real; a same-named artifact under another group is not), a very recent first release, and a missing or unrelated source link.
+
+If the lookup is ambiguous or the coordinate cannot be confidently identified, **stop and ask the user** — do not choose between similar coordinates on intuition.
+
 ## Dependency Rules — All JVM projects
 
 **Always pin exact versions** for both direct dependencies and plugins. Never use dynamic versions, ranges, `LATEST`, `RELEASE`, `+`, or `SNAPSHOT` in production manifests.

@@ -27,6 +27,17 @@ For tool hashes inside workflows, generate them with the ecosystem's own tooling
 
 If you cannot verify a hash with any of the above, **stop and ask the user**. Do not insert a placeholder, a truncated SHA, or a "likely correct" value.
 
+## Action Names: Never Guess
+
+**AI agents must never add a `uses:` reference whose exact `owner/repo` they have not verified on GitHub in the current session.** A guessed action name either fails to resolve or resolves to a look-alike under a squatted account (`action/checkout` vs `actions/checkout` is the canonical example).
+
+Before adding any new action:
+
+1. Verify the exact `owner/repo` exists and is the action you intend: `gh repo view <owner>/<repo>` — confirm the README, publisher, and Marketplace listing (verified-creator badge where available) match the stated purpose.
+2. Treat as red flags: an owner name one or two characters off a well-known one (`actions`, `docker`, `aws-actions`), a recently created repository with few stars presenting itself as a well-known action, and forks referenced in place of the canonical repository.
+
+If the lookup is ambiguous or the action cannot be confidently identified, **stop and ask the user** — do not choose between similar names on intuition. Then SHA-pin the verified action per the hash rules above.
+
 ## Checkout: disable credential persistence
 
 Every `actions/checkout` invocation must set `persist-credentials: false` unless the job genuinely needs to push back to the repo (release tagging, automated commits). The default leaves `GITHUB_TOKEN` in `.git/config` for the rest of the job, where any subsequent step — including a compromised dependency build — can use it.

@@ -27,6 +27,17 @@ python {SKILL_DIR}/verify_hash.py go-module <module> <version>           # → h
 
 If you cannot verify a hash or SHA with any of the above, **stop and ask the user**. Do not insert a placeholder or a "likely correct" value.
 
+## Module Paths: Never Guess
+
+**AI agents must never add a module whose exact import path they have not verified in the current session.** A Go module path is a repository address — a guessed path either fails to resolve or resolves to a look-alike repository under a squatted account or organisation name.
+
+Before adding any new module:
+
+1. Verify the path resolves and lists real versions: `go list -m -versions <module-path>`, and confirm on `https://pkg.go.dev/<module-path>` that the documentation and repository match the stated purpose.
+2. Treat as red flags: an account or organisation segment one or two characters off a well-known one, a repository created very recently, and a fork presenting itself as the canonical module path.
+
+If the lookup is ambiguous or the module cannot be confidently identified, **stop and ask the user** — do not choose between similar paths on intuition.
+
 ## Dependency Rules
 
 **Always pin explicit versions.** Never use `@latest` or `@master` when adding or updating a module. Always specify a tagged version:

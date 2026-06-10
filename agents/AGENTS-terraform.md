@@ -31,6 +31,17 @@ python {SKILL_DIR}/verify_hash.py tf-provider <namespace>/<name> --opentofu  # O
 
 If you cannot verify a hash with any of the above, **stop and ask the user**. Do not insert a placeholder or a "likely correct" value.
 
+## Provider and Module Addresses: Never Guess
+
+**AI agents must never add a provider or module whose exact source address they have not verified against the registry in the current session.** The namespace segment is the trust anchor — `hashicorp/aws` is the real AWS provider; a look-alike namespace serving a same-named provider is an attack.
+
+Before adding any new provider or module:
+
+1. Verify the exact source address on <https://registry.terraform.io/> (or the OpenTofu registry) and confirm the tier badge: prefer Official and Partner providers; for modules, confirm the owning namespace is the project's real organisation.
+2. Treat as red flags: a community-tier provider shadowing an official name, a namespace one or two characters off a well-known one, and a very recently published module with names matching popular ones.
+
+If the lookup is ambiguous or the address cannot be confidently identified, **stop and ask the user** — do not choose between similar addresses on intuition.
+
 ## Dependency Rules
 
 **Always pin providers to exact versions** using the `=` operator in `required_providers`. Never use `~>`, `>=`, or open ranges for production providers:
