@@ -2,14 +2,17 @@
 #
 # SPDX-License-Identifier: MIT
 
-# Dogfooding: run this repo's own audit.py against this repo and fail if any
-# hardening regression appears (a workflow added without harden-runner, a
-# dependency ecosystem missing a Dependabot cooldown, a loose version pin...).
-# The findings table plus recommended changes land in the job summary, so a
-# failing PR check shows exactly what to fix and links the relevant doc.
+# Dogfooding: run this repo's own audit action (action.yml at the repo root)
+# against this repo and fail if any hardening regression appears (a workflow
+# added without harden-runner, a dependency ecosystem missing a Dependabot
+# cooldown, a loose version pin...). The findings table plus recommended
+# changes land in the job summary, so a failing PR check shows exactly what
+# to fix and links the relevant doc.
 #
-# Both scripts are stdlib-only — no package installation step, which keeps the
-# egress allowlist down to what checkout itself needs.
+# `uses: ./` exercises the same composite action consumers reference as
+# `jordanconway/package-manager-hardening@<sha>`. The underlying scripts are
+# stdlib-only — no package installation step, which keeps the egress
+# allowlist down to what checkout itself needs.
 
 name: Self-audit
 
@@ -46,13 +49,7 @@ jobs:
         with:
           persist-credentials: false
 
-      # Gate: report.py exits 1 on any "fail"/"missing" finding. The summary
+      # Gate: the action exits 1 on any "fail"/"missing" finding. The summary
       # is written before the gate fires so failures are always explained.
       - name: Run audit and publish findings
-        run: |
-          python3 skills/harden-packages/audit.py --path . --pretty > audit.json
-          gate=0
-          python3 skills/harden-packages/report.py audit.json > report.md || gate=$?
-          cat report.md >> "$GITHUB_STEP_SUMMARY"
-          cat report.md
-          exit "$gate"
+        uses: ./

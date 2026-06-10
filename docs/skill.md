@@ -71,10 +71,39 @@ The skill audits all of the following, where applicable to the detected stack:
 
 ## Running the audit in CI (no LLM required)
 
-`audit.py` and its companion `report.py` are stdlib-only, so the audit can run as a plain
-GitHub Actions job with no installation step. `report.py` renders the JSON findings as a
-markdown table with remediation hints (written to the job summary) and exits non-zero on any
-`fail`/`missing` finding, making it usable as a required PR check:
+`audit.py` and its companion `report.py` are stdlib-only, so the audit runs in CI with no
+installation step. `report.py` renders the JSON findings as a markdown table with remediation
+hints (written to the job summary) and exits non-zero on any `fail`/`missing` finding, making
+it usable as a required PR check. `warn` statuses (e.g. documented audit-mode Harden-Runner
+exceptions) never fail the gate.
+
+### As a GitHub Action (recommended)
+
+The repository root carries a composite action ([`action.yml`](../action.yml)) wrapping both
+scripts. In any repo, after your checkout step:
+
+```yaml
+# Resolve <commit-sha> from the release tag:
+#   gh api repos/jordanconway/package-manager-hardening/commits/<tag> --jq .sha
+- uses: jordanconway/package-manager-hardening@<commit-sha> # vX.Y.Z
+  with:
+    path: "."          # repository root to audit (default)
+    warn-only: "false" # "true" reports findings without failing the job
+```
+
+Inputs: `path` (default `"."`), `warn-only` (default `"false"`). Outputs: `json-path` and
+`report-path` — absolute paths (in the runner temp directory, so your workspace stays clean)
+to the raw findings JSON and the rendered markdown, for post-processing or artifact upload.
+Adoption path: start with `warn-only: "true"`, fix the reported findings, then remove it and
+add the job to the branch's required status checks.
+
+This repository dogfoods the action on every PR and weekly via `uses: ./` — see
+[`.github/workflows/self-audit.yml`](../.github/workflows/self-audit.yml).
+
+### Vendored (no cross-repo action reference)
+
+If your policy forbids third-party actions, vendor the two scripts (or the whole skill
+directory) and run them directly:
 
 ```yaml
 - name: Run audit and publish findings
@@ -87,11 +116,7 @@ markdown table with remediation hints (written to the job summary) and exits non
     exit "$gate"
 ```
 
-Pass `--warn-only` to `report.py` to publish the report without gating. `warn` statuses
-(e.g. documented audit-mode Harden-Runner exceptions) never fail the gate. This repository
-runs exactly this job on every PR and weekly — see
-[`.github/workflows/self-audit.yml`](../.github/workflows/self-audit.yml). To adopt it in
-another repo, vendor the two scripts (or the whole skill directory) and copy the workflow.
+Pass `--warn-only` to `report.py` to publish the report without gating.
 
 ## Notes
 
