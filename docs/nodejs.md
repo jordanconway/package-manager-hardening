@@ -14,6 +14,8 @@ SPDX-License-Identifier: MIT
 
 npm generates `package-lock.json` on install. Commit this file to source control. In CI, always use `npm ci` instead of `npm install` — it installs strictly from the lockfile and fails if the lockfile is out of sync with `package.json`.
 
+> **The lockfile itself is an attack surface.** A malicious PR can edit a `resolved` URL to point at an attacker-controlled artifact, with a matching `integrity` hash — and `npm ci` will faithfully install it. See [Lockfile Integrity](lockfile-integrity.md) for the attack and mitigations (`lockfile-lint`, `npm audit signatures`, egress control).
+
 ```bash
 npm ci                   # strict lockfile install (CI)
 npm install              # resolves and updates lockfile
