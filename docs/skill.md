@@ -69,6 +69,30 @@ The skill audits all of the following, where applicable to the detected stack:
 | Harden-Runner | Present in all workflows, `block` vs `audit` mode, `allowed-endpoints` |
 | Vulnerability scanning | `cargo audit`, `govulncheck`, `pip-audit` in CI |
 
+## Running the audit in CI (no LLM required)
+
+`audit.py` and its companion `report.py` are stdlib-only, so the audit can run as a plain
+GitHub Actions job with no installation step. `report.py` renders the JSON findings as a
+markdown table with remediation hints (written to the job summary) and exits non-zero on any
+`fail`/`missing` finding, making it usable as a required PR check:
+
+```yaml
+- name: Run audit and publish findings
+  run: |
+    python3 skills/harden-packages/audit.py --path . --pretty > audit.json
+    gate=0
+    python3 skills/harden-packages/report.py audit.json > report.md || gate=$?
+    cat report.md >> "$GITHUB_STEP_SUMMARY"
+    cat report.md
+    exit "$gate"
+```
+
+Pass `--warn-only` to `report.py` to publish the report without gating. `warn` statuses
+(e.g. documented audit-mode Harden-Runner exceptions) never fail the gate. This repository
+runs exactly this job on every PR and weekly — see
+[`.github/workflows/self-audit.yml`](../.github/workflows/self-audit.yml). To adopt it in
+another repo, vendor the two scripts (or the whole skill directory) and copy the workflow.
+
 ## Notes
 
 - The skill never downgrades an existing security setting — if you already have a stricter cooldown than the recommended 7 days, it leaves it alone.

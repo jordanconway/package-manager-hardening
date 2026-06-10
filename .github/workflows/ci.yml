@@ -66,8 +66,8 @@ jobs:
           version: "0.11.11"
 
       - run: uv sync --frozen --group dev --python 3.12
-      - run: uv run ruff check skills/harden-packages/audit.py
-      - run: uv run ruff format --check skills/harden-packages/audit.py
+      - run: uv run ruff check skills/harden-packages/audit.py skills/harden-packages/report.py
+      - run: uv run ruff format --check skills/harden-packages/audit.py skills/harden-packages/report.py
 
   python-test:
     name: Python tests (py${{ matrix.python-version }})
