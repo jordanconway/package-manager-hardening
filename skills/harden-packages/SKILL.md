@@ -719,6 +719,7 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
 ### Node.js (npm / pnpm / yarn / bun)
 
 - Is `package-lock.json` / `pnpm-lock.yaml` / `yarn.lock` / `bun.lock` present and not gitignored?
+- npm/yarn: does CI run `lockfile-lint` (pinned version) validating `--allowed-hosts`, `--validate-https`, and `--validate-integrity`? Lockfile `resolved`-URL tampering passes hash verification and `npm ci` — a lint check is the dedicated control.
 - Do `dependencies` and `devDependencies` use exact versions (no `^` or `~`)?
 - npm ≥ 11.10: is `minimum-release-age` set in `.npmrc`?
 - pnpm ≥ 10.16: is `minimumReleaseAge` set in `pnpm-workspace.yaml`? Is `trustPolicy: no-downgrade` set?

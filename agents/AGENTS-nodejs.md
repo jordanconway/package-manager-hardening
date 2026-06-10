@@ -151,6 +151,19 @@ Start in `audit` mode for new workflows, then tighten to `block` once the egress
 
 Add `npm.pkg.github.com:443` to `allowed-endpoints` if this project uses GitHub Packages.
 
+### Lockfile linting
+
+CI must validate the lockfile's resolved URLs — a tampered `resolved` field installs an
+attacker's artifact while hash verification and `npm ci` both pass:
+
+```bash
+npx --yes lockfile-lint@5.0.0 --path package-lock.json --type npm \
+  --allowed-hosts npm --validate-https --validate-integrity
+```
+
+Add each private registry hostname to `--allowed-hosts` if applicable. Never edit `resolved`
+or `integrity` fields by hand.
+
 ## What Requires Human Review
 
 The following changes must not be made autonomously and require explicit human approval before proceeding:
