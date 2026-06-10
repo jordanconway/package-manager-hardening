@@ -77,4 +77,6 @@ Per-package overrides using `include` and `exclude`:
 - **`github-actions` ecosystem special case:** action tags (`v4`, `v4.1.2`) aren't always parsed as SemVer by Dependabot, so `semver-major-days` / `semver-minor-days` / `semver-patch-days` do not reliably apply. For the `github-actions` ecosystem, rely on `default-days` only.
 - **Security update PRs automatically bypass the cooldown** — a CVE-triggered Dependabot PR is never delayed, regardless of `cooldown` settings.
 - Cooldown only gates automated version update PRs. A developer running `npm install foo` or `go get` locally bypasses it entirely.
-- Supported for all ecosystems including npm, pip, gomod, cargo, NuGet, Helm, and more.
+- Supported for all ecosystems including npm, pip, gomod, cargo, NuGet, and more — but **not Helm chart dependencies**, which Dependabot does not update at all.
+
+**Alternative:** [Renovate](renovate.md) provides the equivalent cooldown (`minimumReleaseAge`) across every manager it supports, with per-package rules and a dependency dashboard showing held-back updates. See the comparison table in that doc for when to prefer which.
