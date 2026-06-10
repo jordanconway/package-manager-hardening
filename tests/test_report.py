@@ -23,15 +23,22 @@ def test_walk_yields_nested_statuses():
         "lockfile": {"status": "pass"},
         "ci": {"status": "fail", "nested": {"status": "warn"}},
     }
-    found = dict(report.walk(tree, ["nodejs"]))
+    found = {path: status for path, status, _node in report.walk(tree, ["nodejs"])}
     assert found["nodejs.lockfile"] == "pass"
     assert found["nodejs.ci"] == "fail"
     assert found["nodejs.ci.nested"] == "warn"
 
 
+def test_walk_yields_the_finding_node():
+    tree = {"lockfile": {"status": "warn", "egress_policy": "audit"}}
+    [(path, _status, node)] = list(report.walk(tree, ["x"]))
+    assert path == "x.lockfile"
+    assert node["egress_policy"] == "audit"
+
+
 def test_walk_reports_error_keys_as_fail():
     tree = {"error": "boom"}
-    found = dict(report.walk(tree, ["rust"]))
+    found = {path: status for path, status, _node in report.walk(tree, ["rust"])}
     assert found["rust.error"] == "fail"
 
 
@@ -86,6 +93,60 @@ def test_render_warn_and_na_do_not_fail():
     markdown, failing = report.render(audit)
     assert failing == []
     assert "⚠️" in markdown
+
+
+# ---------------------------------------------------------------------------
+# Warning explanations
+# ---------------------------------------------------------------------------
+
+def test_audit_mode_harden_runner_warning_explained():
+    audit = {
+        "harden_runner": {
+            "status": "warn",
+            "workflows": {
+                "codeql.yml": {"status": "warn", "harden_runner_present": True, "egress_policy": "audit"},
+                "ci.yml": {"status": "pass", "harden_runner_present": True, "egress_policy": "block"},
+            },
+        },
+    }
+    markdown, failing = report.render(audit)
+    assert failing == []
+    assert "Warnings explained" in markdown
+    assert "Warnings never fail this check" in markdown
+    # per-workflow audit-mode reason, including the documented exceptions
+    assert "`audit` mode" in markdown
+    assert "documented exceptions" in markdown
+    # top-level summary counts passing workflows
+    assert "1 of 2 workflows" in markdown
+    assert "docs/harden-runner.md" in markdown
+
+
+def test_dependabot_missing_cooldown_warning_explained():
+    audit = {
+        "dependabot": {
+            "status": "fail",
+            "ecosystems": {
+                "nodejs": {"status": "warn", "ecosystem_key": "npm", "cooldown_configured": False},
+            },
+        },
+    }
+    markdown, _failing = report.render(audit)
+    assert "no `cooldown:` block" in markdown
+    assert "docs/dependabot.md" in markdown
+
+
+def test_unrecognised_warning_gets_generic_reason():
+    audit = {"nodejs": {"some_new_check": {"status": "warn"}}}
+    markdown, failing = report.render(audit)
+    assert failing == []
+    assert "Warnings explained" in markdown
+    assert "not at the strictest recommended setting" in markdown
+
+
+def test_no_warnings_section_when_all_pass():
+    audit = {"nodejs": {"lockfile": {"status": "pass"}}}
+    markdown, _failing = report.render(audit)
+    assert "Warnings explained" not in markdown
 
 
 def test_render_per_workflow_harden_runner_failure_hint():

@@ -79,19 +79,57 @@ HINTS = {
 
 
 def walk(node, path):
-    """Yield (dotted_path, status) for every dict carrying a string status."""
+    """Yield (dotted_path, status, node) for every dict carrying a string status."""
     if not isinstance(node, dict):
         return
     status = node.get("status")
     if isinstance(status, str):
-        yield ".".join(path), status
+        yield ".".join(path), status, node
     if "error" in node and isinstance(node.get("error"), str):
-        yield ".".join(path + ["error"]), "fail"
+        yield ".".join(path + ["error"]), "fail", node
     for key, value in node.items():
         if key == "status":
             continue
         if isinstance(value, dict):
             yield from walk(value, path + [key])
+
+
+def warn_reason(path, node):
+    """Explain why a specific check is a warning, from the finding's own data."""
+    segments = path.split(".")
+
+    if segments[0] == "harden_runner":
+        if len(segments) >= 3 and segments[1] == "workflows":
+            if node.get("egress_policy") == "audit":
+                return (
+                    "Harden-Runner runs in `audit` mode — outbound connections are logged but not blocked. "
+                    "Review the audit log and switch to `egress-policy: block` with an `allowed-endpoints` "
+                    "allowlist. (CodeQL and Scorecard workflows are documented exceptions: both contact "
+                    "endpoint sets too dynamic to allowlist and must stay in audit mode.)"
+                )
+            if node.get("harden_runner_present"):
+                return (
+                    "Harden-Runner is present but its `egress-policy` was not recognised — "
+                    "set it explicitly to `block` (or `audit` while building an allowlist)."
+                )
+            return "Harden-Runner status could not be determined for this workflow."
+        workflows = node.get("workflows")
+        if isinstance(workflows, dict) and workflows:
+            passing = sum(1 for w in workflows.values() if isinstance(w, dict) and w.get("status") == "pass")
+            return (
+                f"{passing} of {len(workflows)} workflows enforce `egress-policy: block`; "
+                "the rest run in audit mode or lack Harden-Runner — see the per-workflow rows."
+            )
+        return "Harden-Runner coverage is incomplete — see the per-workflow rows."
+
+    if segments[0] == "dependabot" and node.get("cooldown_configured") is False:
+        return (
+            "The ecosystem has a dependabot.yml entry but no `cooldown:` block — update PRs are "
+            "raised immediately on release, with no soak time for the community to catch a "
+            "compromised version."
+        )
+
+    return "Configured, but not at the strictest recommended setting — see the linked doc."
 
 
 def hint_for(path):
@@ -123,12 +161,12 @@ def render(report):
 
     lines.append("| Check | Status |")
     lines.append("|-------|--------|")
-    for path, status in checks:
+    for path, status, _node in checks:
         marker = MARKERS.get(status, NEUTRAL_MARKER)
         lines.append(f"| `{path}` | {marker} {status} |")
     lines.append("")
 
-    failing = [(path, status) for path, status in checks if status in FAILING]
+    failing = [(path, status) for path, status, _node in checks if status in FAILING]
     if failing:
         lines.append("## Recommended changes")
         lines.append("")
@@ -138,7 +176,20 @@ def render(report):
             lines.append(f"- `{path}` — {hint_for(path)}{link}")
         lines.append("")
     else:
-        lines.append("No failing checks. ⚠️ items are documented exceptions or pending tightening.")
+        lines.append("No failing checks.")
+        lines.append("")
+
+    warnings = [(path, node) for path, status, node in checks if status == "warn"]
+    if warnings:
+        lines.append("## Warnings explained")
+        lines.append("")
+        lines.append("Warnings never fail this check — they mark documented exceptions or settings")
+        lines.append("that could be tightened further.")
+        lines.append("")
+        for path, node in warnings:
+            doc = doc_for(path)
+            link = f" ([{doc}]({doc}))" if doc else ""
+            lines.append(f"- `{path}` — {warn_reason(path, node)}{link}")
         lines.append("")
 
     return "\n".join(lines), [path for path, _ in failing]
