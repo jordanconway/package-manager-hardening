@@ -13,7 +13,7 @@ SPDX-License-Identifier: MIT
 
 A reference for hardening software supply chains across npm, pnpm, Yarn, Bun, pip, uv, Go modules, Cargo, Maven, Gradle, NuGet, Terraform, and OpenTofu.
 
-Supply chain attacks typically succeed through one of a small number of vectors: a loose version constraint allows a newly published malicious version to be silently pulled in; a missing or unenforced lockfile lets an attacker's package substitute for a legitimate one; a compromised maintainer account publishes a backdoored patch release that lands in CI within minutes of publication; or a package's postinstall script runs arbitrary code during a routine `npm install`. This repository addresses all of these through a layered set of controls applied consistently across ecosystems.
+Supply chain attacks typically succeed through one of a small number of vectors: a loose version constraint allows a newly published malicious version to be silently pulled in; a missing or unenforced lockfile lets an attacker's package substitute for a legitimate one; a compromised maintainer account publishes a backdoored patch release that lands in CI within minutes of publication; or a package's postinstall script runs arbitrary code during a routine `npm install`. This repository addresses all of these through a layered set of controls applied consistently across ecosystems. Most real-world attacks target transitive dependencies (packages your packages depend on, not ones you declare directly) — see [Transitive Dependency Coverage](docs/transitive.md) for a per-ecosystem breakdown of which controls reach the full dependency graph.
 
 The core practices covered here are:
 
@@ -82,6 +82,7 @@ cp -r skills/harden-packages ~/.claude/skills/
 
 | Doc | Covers |
 |-----|--------|
+| [Transitive Dependencies](docs/transitive.md) | Which controls cover indirect dependencies, the update-window gap, per-ecosystem coverage matrix |
 | [Dependabot](docs/dependabot.md) | Cooldown configuration per ecosystem, semver-level delay, known Terraform provider bug |
 | [Harden-Runner](docs/harden-runner.md) | Runtime CI egress control, audit → block mode, per-ecosystem `allowed-endpoints` |
 | [GitHub Actions](docs/github-actions.md) | SHA pinning, runner image pinning, least-privilege permissions, expression injection, OIDC, CODEOWNERS, `persist-credentials: false`, workflow concurrency, zizmor static analysis, CodeQL SAST, fuzzing, dependency-review on PRs, OpenSSF Scorecard, `SECURITY.md` + private vulnerability reporting |
