@@ -1050,7 +1050,24 @@ def audit_harden_runner(root):
 
     results = {}
     for name, content in wfs.items():
-        has_hr = grep(content, r"harden-runner")
+        # Detect harden-runner from `uses:` references (not bare substring
+        # matches, which counted comments). Companion allow-list loaders
+        # (e.g. lfreleng-actions/harden-runner-block-action) publish an env
+        # var from their pre: hook that step-security/harden-runner's own
+        # pre: hook consumes — pre: hooks run in step order, so the loader
+        # must appear BEFORE the harden-runner step to have any effect.
+        uses_refs = re.findall(r"^\s*(?:-\s*)?uses:\s*(\S+)", content, re.MULTILINE)
+        hr_idx = next((i for i, u in enumerate(uses_refs) if "step-security/harden-runner" in u), None)
+        companion_idx = next(
+            (i for i, u in enumerate(uses_refs) if "harden-runner" in u and "step-security/harden-runner" not in u),
+            None,
+        )
+        has_hr = hr_idx is not None
+        has_steps = grep(content, r"^\s*steps:", re.MULTILINE)
+        # Thin caller of a reusable workflow: job-level `uses:`, no steps —
+        # file-based scanning cannot see inside the called workflow.
+        reusable_call = bool(uses_refs) and not has_steps
+
         egress = find_value(content, r"egress-policy:\s*(\S+)")
         if egress:
             # YAML values may be quoted ('block', "audit") — normalise so
@@ -1059,28 +1076,56 @@ def audit_harden_runner(root):
         disable_sudo = grep(content, r"disable-sudo:\s*[\"']?true[\"']?")
         has_endpoints = grep(content, r"allowed-endpoints")
 
-        if not has_hr:
+        note = None
+        if has_hr:
+            if egress == "audit":
+                wf_status = "warn"
+            elif egress == "block":
+                wf_status = "pass"
+            else:
+                wf_status = "warn"
+            if companion_idx is not None and companion_idx > hr_idx:
+                wf_status = "warn"
+                note = (
+                    "An allow-list loader companion action appears AFTER the "
+                    "step-security/harden-runner step. pre: hooks run in step order, "
+                    "so the loader's env var does not exist when harden-runner's own "
+                    "pre: hook reads allowed-endpoints — move the loader before the "
+                    "harden-runner step."
+                )
+        elif reusable_call:
+            wf_status = "warn"
+            note = (
+                "This workflow only calls a reusable workflow; file-based scanning "
+                "cannot see inside it. Verify the called workflow runs "
+                "step-security/harden-runner (block mode) as its first step."
+            )
+        elif companion_idx is not None:
             wf_status = "fail"
-        elif egress == "audit":
-            wf_status = "warn"
-        elif egress == "block":
-            wf_status = "pass"
+            note = (
+                "An allow-list loader companion action is present but no "
+                "step-security/harden-runner step follows it — the loader alone "
+                "provides no egress control."
+            )
         else:
-            wf_status = "warn"
+            wf_status = "fail"
 
         results[name] = {
             "harden_runner_present": has_hr,
             "egress_policy": egress,
             "disable_sudo": disable_sudo,
             "allowed_endpoints": has_endpoints,
+            "reusable_workflow_call": reusable_call,
             "status": wf_status,
         }
+        if note:
+            results[name]["note"] = note
 
     overall = (
         "pass"
         if all(v["status"] == "pass" for v in results.values())
         else "warn"
-        if any(v["harden_runner_present"] for v in results.values())
+        if any(v["harden_runner_present"] or v["reusable_workflow_call"] for v in results.values())
         else "fail"
     )
 
