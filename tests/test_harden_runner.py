@@ -135,3 +135,88 @@ def test_double_quoted_egress_policy_audit_warns(tmp_path):
     result = audit.audit_harden_runner(str(tmp_path))
     assert result["workflows"]["ci.yml"]["egress_policy"] == "audit"
     assert result["workflows"]["ci.yml"]["status"] == "warn"
+
+
+# ---------------------------------------------------------------------------
+# Companion allow-list loaders + reusable-workflow callers
+# (lfreleng-actions/.github feedback)
+# ---------------------------------------------------------------------------
+
+WF_LOADER_THEN_HR = (
+    "jobs:\n  build:\n    steps:\n"
+    "      - uses: lfreleng-actions/harden-runner-block-action@18d9c44 # v0.1.1\n"
+    "      - uses: step-security/harden-runner@abc # v2\n"
+    "        with:\n"
+    "          egress-policy: block\n"
+    "          allowed-endpoints: ${{ env.CONNECTION_ALLOW_LIST }}\n"
+)
+
+WF_HR_THEN_LOADER = (
+    "jobs:\n  build:\n    steps:\n"
+    "      - uses: step-security/harden-runner@abc # v2\n"
+    "        with:\n"
+    "          egress-policy: block\n"
+    "          allowed-endpoints: ${{ env.CONNECTION_ALLOW_LIST }}\n"
+    "      - uses: lfreleng-actions/harden-runner-block-action@18d9c44 # v0.1.1\n"
+)
+
+WF_LOADER_ONLY = (
+    "jobs:\n  build:\n    steps:\n"
+    "      - uses: lfreleng-actions/harden-runner-block-action@18d9c44 # v0.1.1\n"
+    "      - uses: actions/checkout@abc # v6\n"
+)
+
+WF_REUSABLE_CALLER = (
+    "jobs:\n  audit:\n"
+    "    uses: lfit/releng-reusable-workflows/.github/workflows/reuse-audit.yaml@f43b219 # v0.6.0\n"
+    "    permissions:\n      contents: read\n"
+    "    with:\n      warn_only: true\n"
+)
+
+
+def test_loader_before_harden_runner_block_passes(tmp_path):
+    make_workflow(tmp_path, "ci.yml", WF_LOADER_THEN_HR)
+    result = audit.audit_harden_runner(str(tmp_path))
+    wf = result["workflows"]["ci.yml"]
+    assert wf["status"] == "pass"
+    assert "note" not in wf
+
+
+def test_loader_after_harden_runner_warns_with_ordering_note(tmp_path):
+    make_workflow(tmp_path, "ci.yml", WF_HR_THEN_LOADER)
+    result = audit.audit_harden_runner(str(tmp_path))
+    wf = result["workflows"]["ci.yml"]
+    assert wf["status"] == "warn"
+    assert "pre: hooks run in step order" in wf["note"]
+
+
+def test_loader_without_harden_runner_fails_with_note(tmp_path):
+    make_workflow(tmp_path, "ci.yml", WF_LOADER_ONLY)
+    result = audit.audit_harden_runner(str(tmp_path))
+    wf = result["workflows"]["ci.yml"]
+    assert wf["status"] == "fail"
+    assert "no step-security/harden-runner step" in wf["note"]
+
+
+def test_reusable_workflow_caller_warns_with_note(tmp_path):
+    make_workflow(tmp_path, "package-hardening-audit.yaml", WF_REUSABLE_CALLER)
+    result = audit.audit_harden_runner(str(tmp_path))
+    wf = result["workflows"]["package-hardening-audit.yaml"]
+    assert wf["status"] == "warn"
+    assert wf["harden_runner_present"] is False
+    assert wf["reusable_workflow_call"] is True
+    assert "reusable workflow" in wf["note"]
+    # repo with only thin callers is warn overall, not fail
+    assert result["status"] == "warn"
+
+
+def test_harden_runner_in_comment_only_fails(tmp_path):
+    content = (
+        "jobs:\n  build:\n    steps:\n"
+        "      # TODO: add step-security/harden-runner here\n"
+        "      - uses: actions/checkout@abc # v6\n"
+    )
+    make_workflow(tmp_path, "ci.yml", content)
+    result = audit.audit_harden_runner(str(tmp_path))
+    assert result["workflows"]["ci.yml"]["harden_runner_present"] is False
+    assert result["workflows"]["ci.yml"]["status"] == "fail"
