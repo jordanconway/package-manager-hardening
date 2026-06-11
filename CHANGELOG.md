@@ -12,6 +12,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-06-11
+
+Patch release: Harden-Runner detection fixes from real-world organisation-wide rollout feedback ([lfreleng-actions/.github#44](https://github.com/lfreleng-actions/.github/pull/44)).
+
+### Fixed
+
+- `audit_harden_runner` now understands two organisation-scale deployment patterns it previously misreported (PR #54):
+  - **Companion allow-list loaders** (e.g. `lfreleng-actions/harden-runner-block-action`, which loads a central egress allow-list into an env var from its `pre:` hook for the subsequent `step-security/harden-runner` step to consume). The audit validates the ordering requirement — `pre:` hooks run in step-definition order, so the loader must appear *before* the harden-runner step: loader-first + `egress-policy: block` passes; loader-after-harden-runner warns with a pre-hook-ordering explanation; a loader with no harden-runner step at all fails with a note (the loader alone provides no egress control).
+  - **Thin reusable-workflow callers** (job-level `uses:`, no `steps:`) are now a warn with an explanatory note — verify harden-runner inside the called workflow — instead of a hard fail; file-based scanning cannot see into the called workflow. A repository containing only thin callers aggregates to `warn` overall, not `fail`. Same blindness-is-not-failure treatment as the `ci_frozen_install` composite-action fix in 0.4.0.
+- Harden-Runner presence is now detected from `uses:` references rather than bare substring matches — a `# TODO: add harden-runner` comment no longer counts as present.
+
 ## [0.4.0] - 2026-06-10
 
 Fourth tagged release. Major theme: the audit becomes a product — a reusable GitHub Action any repository can adopt as a CI check — hardened by fixes from its first real-world runs. Plus three new cross-cutting docs (transitive coverage, Renovate, lockfile integrity) and a new mandatory package-identity rule for AI agents.
@@ -158,7 +169,8 @@ Documented in [`SECURITY.md`](SECURITY.md):
 - `Maintained` Scorecard check is time-based and will resolve once the repository is 90 days old.
 - OpenSSF Best Practices badge: **Passing** tier awarded (project 12822).
 
-[Unreleased]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/jordanconway/package-manager-hardening/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/jordanconway/package-manager-hardening/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/jordanconway/package-manager-hardening/compare/v0.1.0...v0.2.0
