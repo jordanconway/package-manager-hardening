@@ -73,7 +73,46 @@ def test_render_failures_include_hint_and_doc_link():
     assert failing == ["python.lockfile"]
     assert "Recommended changes" in markdown
     assert "Commit the lockfile" in markdown
-    assert "docs/python.md" in markdown
+    # Readable link text plus an absolute href to the canonical repo, so it
+    # resolves from a consumer repo's CI output rather than 404-ing.
+    assert "[docs/python.md](" in markdown
+    assert "https://github.com/jordanconway/package-manager-hardening/blob/main/docs/python.md" in markdown
+
+
+# ---------------------------------------------------------------------------
+# Doc link base URL
+# ---------------------------------------------------------------------------
+
+def test_doc_link_is_absolute_by_default(monkeypatch):
+    monkeypatch.delenv("HARDENING_DOC_BASE_URL", raising=False)
+    link = report.doc_link("nodejs.lockfile")
+    assert link == (
+        " ([docs/nodejs.md]"
+        "(https://github.com/jordanconway/package-manager-hardening/blob/main/docs/nodejs.md))"
+    )
+
+
+def test_doc_link_respects_base_url_override(monkeypatch):
+    monkeypatch.setenv(
+        "HARDENING_DOC_BASE_URL",
+        "https://github.com/jordanconway/package-manager-hardening/blob/v0.4.1/",
+    )
+    link = report.doc_link("harden_runner.workflows.ci.yml")
+    assert "blob/v0.4.1/docs/harden-runner.md" in link
+
+
+def test_doc_link_normalises_missing_trailing_slash(monkeypatch):
+    monkeypatch.setenv("HARDENING_DOC_BASE_URL", "https://example.test/x")
+    assert report.doc_link("python.lockfile") == " ([docs/python.md](https://example.test/x/docs/python.md))"
+
+
+def test_doc_link_blank_override_falls_back_to_default(monkeypatch):
+    monkeypatch.setenv("HARDENING_DOC_BASE_URL", "   ")
+    assert "blob/main/docs/python.md" in report.doc_link("python.lockfile")
+
+
+def test_doc_link_empty_for_unknown_section():
+    assert report.doc_link("mystery.check") == ""
 
 
 def test_render_missing_counts_as_failing():

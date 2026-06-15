@@ -21,7 +21,15 @@ CI without installing anything.
 """
 
 import json
+import os
 import sys
+
+# Doc links must point at the canonical hardening repo, not the consumer
+# repo the action runs in (where docs/*.md does not exist). The link text
+# stays the readable relative path; the href is absolute. The base is
+# overridable via HARDENING_DOC_BASE_URL so the action can pin docs to the
+# exact version it runs at; it defaults to main.
+DEFAULT_DOC_BASE_URL = "https://github.com/jordanconway/package-manager-hardening/blob/main/"
 
 MARKERS = {
     "pass": "✅",
@@ -150,6 +158,25 @@ def doc_for(path):
     return SECTION_DOCS.get(top)
 
 
+def doc_base_url():
+    base = (os.environ.get("HARDENING_DOC_BASE_URL") or "").strip()
+    if not base:
+        base = DEFAULT_DOC_BASE_URL
+    return base if base.endswith("/") else base + "/"
+
+
+def doc_link(path):
+    """Markdown link to the canonical doc for a finding, or '' if none.
+
+    Link text is the readable relative path; the href is an absolute URL to
+    the hardening repo so it resolves from a consumer repo's CI output.
+    """
+    doc = doc_for(path)
+    if not doc:
+        return ""
+    return f" ([{doc}]({doc_base_url()}{doc}))"
+
+
 def render(report):
     """Return (markdown, failing_paths) for an audit.py report dict."""
     checks = []
@@ -176,9 +203,7 @@ def render(report):
         lines.append("## Recommended changes")
         lines.append("")
         for path, _status in failing:
-            doc = doc_for(path)
-            link = f" ([{doc}]({doc}))" if doc else ""
-            lines.append(f"- `{path}` — {hint_for(path)}{link}")
+            lines.append(f"- `{path}` — {hint_for(path)}{doc_link(path)}")
         lines.append("")
     else:
         lines.append("No failing checks.")
@@ -192,9 +217,7 @@ def render(report):
         lines.append("that could be tightened further.")
         lines.append("")
         for path, node in warnings:
-            doc = doc_for(path)
-            link = f" ([{doc}]({doc}))" if doc else ""
-            lines.append(f"- `{path}` — {warn_reason(path, node)}{link}")
+            lines.append(f"- `{path}` — {warn_reason(path, node)}{doc_link(path)}")
         lines.append("")
 
     return "\n".join(lines), [path for path, _ in failing]

@@ -60,6 +60,11 @@ runs:
       env:
         AUDIT_PATH: ${{ inputs.path }}
         WARN_ONLY: ${{ inputs.warn-only }}
+        # Pin doc links in the report to the exact ref this action runs at
+        # (the consumer's `@<sha>` / `@vX.Y.Z`), so they match the audit
+        # logic that produced them. Falls back to main for local `uses: ./`.
+        HARDENING_DOC_BASE_URL: >-
+          https://github.com/jordanconway/package-manager-hardening/blob/${{ github.action_ref || 'main' }}/
       run: |
         audit_json="$RUNNER_TEMP/package-hardening-audit.json"
         report_md="$RUNNER_TEMP/package-hardening-report.md"
