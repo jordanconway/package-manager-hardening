@@ -12,6 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-06-11
+
+Patch release: fixes broken documentation links in the action's report output.
+
+### Fixed
+
+- Report doc links were relative (`docs/python.md`), so when the action ran in a consumer repo they resolved against *that* repo — where the docs don't exist — and 404'd (observed in [lfreleng-actions/python-nss-ng](https://github.com/lfreleng-actions/python-nss-ng/actions/runs/27435843928) CI). They are now absolute URLs to `jordanconway/package-manager-hardening`, with the readable relative path kept as the link text (PR #57). The base is overridable via `HARDENING_DOC_BASE_URL`; `action.yml` sets it from `github.action_ref` so links pin to the exact ref the action runs at (`@vX.Y.Z` / `@<sha>`), matching the audit logic that produced them, and fall back to `main` for local `uses: ./`.
+
 ## [0.4.1] - 2026-06-11
 
 Patch release: Harden-Runner detection fixes from real-world organisation-wide rollout feedback ([lfreleng-actions/.github#44](https://github.com/lfreleng-actions/.github/pull/44)).
@@ -169,7 +177,8 @@ Documented in [`SECURITY.md`](SECURITY.md):
 - `Maintained` Scorecard check is time-based and will resolve once the repository is 90 days old.
 - OpenSSF Best Practices badge: **Passing** tier awarded (project 12822).
 
-[Unreleased]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/jordanconway/package-manager-hardening/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/jordanconway/package-manager-hardening/compare/v0.2.0...v0.3.0
