@@ -12,6 +12,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-06-29
+
+Patch release: cooldown policy semantics are now explicit and strategy-driven, so resolver-level and Dependabot cooldowns are treated as alternative controls (with clear warnings when both are configured).
+
+### Added
+
+- Cross-cutting `cooldown` assessment in [`skills/harden-packages/audit.py`](skills/harden-packages/audit.py) that evaluates release-age policy per ecosystem (Node.js, Python, Rust) across both configuration layers: resolver-level cooldowns and Dependabot cooldowns (PR #63).
+- New `--cooldown-strategy` CLI flag in `audit.py` and matching `cooldown-strategy` action input in [`action.yml`](action.yml), with `auto` (default), `dependabot`, and `resolver` modes so organisations can enforce their preferred posture explicitly (PR #63).
+- New unit test module [`tests/test_assess_cooldown.py`](tests/test_assess_cooldown.py) covering pass/warn/fail outcomes and strategy-specific behavior for the cooldown assessment logic (PR #63).
+
+### Changed
+
+- Cooldown interpretation now treats resolver-level and Dependabot cooldowns as **alternative implementations of the same control** rather than cumulative requirements: in default `auto` mode, either mechanism satisfies the control and dual-configuration is flagged as `warn` because resolver-level gates block Dependabot security-update automation (PR #63).
+- Resolver-level cooldown fields for Node.js and Rust now report configuration facts (`configured`) and defer policy verdicts to the new cross-cutting `cooldown` section. Python `uv_config.status` now reflects hash-verification integrity only; cooldown verdicting moved to `cooldown` (PR #63).
+- Repository dogfood config now aligns with the “pick one” posture by removing resolver-level cooldowns from [`.npmrc`](.npmrc), [`pyproject.toml`](pyproject.toml), and corresponding `uv.lock` options, relying on Dependabot PR-level cooldown for this repo (PR #63).
+- Documentation updated to explain resolver-level vs Dependabot cooldown trade-offs and recommended defaults across [`README.md`](README.md), [`docs/dependabot.md`](docs/dependabot.md), [`docs/nodejs.md`](docs/nodejs.md), [`docs/python.md`](docs/python.md), [`docs/renovate.md`](docs/renovate.md), [`docs/transitive.md`](docs/transitive.md), and [`skills/harden-packages/SKILL.md`](skills/harden-packages/SKILL.md) (PR #63).
+
 ## [0.4.2] - 2026-06-11
 
 Patch release: fixes broken documentation links in the action's report output.
