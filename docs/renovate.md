@@ -113,8 +113,11 @@ useful if Dependabot handles some ecosystems and Renovate covers the rest:
 - Like Dependabot's cooldown, `minimumReleaseAge` gates the *update PR*, not the resolver.
   A developer running `go get`, `bundle update`, or `mvn versions:use-latest-releases`
   locally bypasses it entirely. Where a native resolver-level gate exists (npm, pnpm, Yarn,
-  Bun, uv, cargo-cooldown), configure it as the primary control and treat Renovate as the
-  PR-level layer on top.
+  Bun, uv, cargo-cooldown), treat it as an **alternative**, not a layer to stack underneath
+  Renovate: the resolver-level gate has no security-update exception, so running both blocks
+  automated security updates. Pick one per ecosystem — see
+  [Cooldown: resolver-level vs Dependabot](dependabot.md#cooldown-resolver-level-vs-dependabot--pick-one)
+  (the same trade-off applies to Renovate's PR-level cooldown).
 - New *transitive* packages introduced by an aged direct update are not individually
   age-checked — the same update-window caveat described in
   [Transitive Dependency Coverage](transitive.md).

@@ -70,7 +70,7 @@ def test_cooldown_configured(tmp_path):
     (tmp_path / "Cargo.toml").write_text(MINIMAL_CARGO_TOML)
     write_file(tmp_path, ".cargo/config.toml", "[cooldown]\ndays = 7\n")
     result = audit.audit_rust(str(tmp_path))
-    assert result["cooldown"]["status"] == "pass"
+    assert result["cooldown"]["configured"] is True
     assert result["cooldown"]["days"] == "7"
 
 
@@ -78,13 +78,13 @@ def test_cooldown_missing(tmp_path):
     (tmp_path / "Cargo.toml").write_text(MINIMAL_CARGO_TOML)
     write_file(tmp_path, ".cargo/config.toml", "[net]\noffline = false\n")
     result = audit.audit_rust(str(tmp_path))
-    assert result["cooldown"]["status"] == "fail"
+    assert result["cooldown"]["configured"] is False
 
 
 def test_cooldown_no_config_file(tmp_path):
     (tmp_path / "Cargo.toml").write_text(MINIMAL_CARGO_TOML)
     result = audit.audit_rust(str(tmp_path))
-    assert result["cooldown"]["status"] == "fail"
+    assert result["cooldown"]["configured"] is False
 
 
 # ---------------------------------------------------------------------------

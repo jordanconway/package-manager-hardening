@@ -16,12 +16,13 @@ dev = [
 ]
 
 [tool.uv]
-# Hardening: refuse to resolve anything published in the last 7 days.
-# Rolling cooldown against compromised-release attacks — re-evaluated
-# every time the lockfile is refreshed (uv lock), no manual date bump.
-# Hash verification of resolved artefacts is automatic via uv.lock +
-# `uv sync --frozen` — no separate flag needed.
-exclude-newer = "7 days"
+# Release-age cooldown is handled at the PR level by the Dependabot `uv`
+# ecosystem cooldown in .github/dependabot.yml. We deliberately do NOT set a
+# resolver-level `exclude-newer` cooldown here: it has no security-update
+# exception, so it would block Dependabot's automated security updates and
+# force manual version bumps + lockfile regeneration for every CVE fix. See
+# docs/dependabot.md (Cooldown: resolver-level vs Dependabot) — pick one;
+# we prioritise Dependabot for the security-autoupdate ergonomics.
 
 [tool.uv.pip]
 # If anyone uses `uv pip install` directly (outside of `uv sync`),

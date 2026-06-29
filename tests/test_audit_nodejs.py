@@ -123,7 +123,7 @@ def test_npm_mra_configured(tmp_path):
     make_pkg(tmp_path)
     (tmp_path / ".npmrc").write_text("minimum-release-age=10080\n")
     result = audit.audit_nodejs(str(tmp_path))
-    assert result["minimum_release_age"]["status"] == "pass"
+    assert result["minimum_release_age"]["configured"] is True
     assert result["minimum_release_age"]["minimum-release-age"] == "10080"
 
 
@@ -131,7 +131,7 @@ def test_npm_mra_missing(tmp_path):
     make_pkg(tmp_path)
     (tmp_path / ".npmrc").write_text("registry=https://registry.npmjs.org\n")
     result = audit.audit_nodejs(str(tmp_path))
-    assert result["minimum_release_age"]["status"] == "fail"
+    assert result["minimum_release_age"]["configured"] is False
 
 
 def test_pnpm_mra_configured(tmp_path):
@@ -139,7 +139,7 @@ def test_pnpm_mra_configured(tmp_path):
     (tmp_path / "pnpm-lock.yaml").write_text("")
     (tmp_path / "pnpm-workspace.yaml").write_text("minimumReleaseAge: '7 days'\ntrustPolicy: never\n")
     result = audit.audit_nodejs(str(tmp_path))
-    assert result["minimum_release_age"]["status"] == "pass"
+    assert result["minimum_release_age"]["configured"] is True
 
 
 def test_yarn_mra_configured(tmp_path):
@@ -147,7 +147,7 @@ def test_yarn_mra_configured(tmp_path):
     (tmp_path / "yarn.lock").write_text("")
     (tmp_path / ".yarnrc.yml").write_text("npmMinimalAgeGate: 10080\n")
     result = audit.audit_nodejs(str(tmp_path))
-    assert result["minimum_release_age"]["status"] == "pass"
+    assert result["minimum_release_age"]["configured"] is True
 
 
 def test_bun_mra_configured(tmp_path):
@@ -155,7 +155,7 @@ def test_bun_mra_configured(tmp_path):
     (tmp_path / "bun.lock").write_text("")
     (tmp_path / "bunfig.toml").write_text('minimumReleaseAge = "10080m"\n')
     result = audit.audit_nodejs(str(tmp_path))
-    assert result["minimum_release_age"]["status"] == "pass"
+    assert result["minimum_release_age"]["configured"] is True
 
 
 # ---------------------------------------------------------------------------

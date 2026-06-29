@@ -110,10 +110,11 @@ def test_requires_python_skipped_but_loose_deps_still_flagged(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# UV config
+# UV config — status reflects hash verification (integrity) only; the
+# exclude-newer cooldown is graded by the cross-cutting cooldown section.
 # ---------------------------------------------------------------------------
 
-def test_uv_config_all_set(tmp_path):
+def test_uv_config_hashes_set_passes(tmp_path):
     content = (
         "[tool.uv]\n"
         "exclude-newer = '2025-01-01T00:00:00Z'\n"
@@ -129,22 +130,26 @@ def test_uv_config_all_set(tmp_path):
     assert result["uv_config"]["exclude_newer"] is not None
 
 
-def test_uv_config_missing_exclude_newer(tmp_path):
+def test_uv_config_passes_without_exclude_newer(tmp_path):
+    # exclude-newer absence no longer fails uv_config — cooldown is assessed
+    # separately and can be satisfied by a Dependabot cooldown instead.
     content = "[tool.uv]\nrequire-hashes = true\nverify-hashes = true\n"
     (tmp_path / "pyproject.toml").write_text(content)
     (tmp_path / "uv.lock").write_text("")
     result = audit.audit_python(str(tmp_path))
-    assert result["uv_config"]["status"] == "fail"
+    assert result["uv_config"]["status"] == "pass"
     assert result["uv_config"]["exclude_newer"] is None
 
 
-def test_uv_config_missing_require_hashes(tmp_path):
+def test_uv_config_missing_require_hashes_fails(tmp_path):
     content = "[tool.uv]\nexclude-newer = '2025-01-01T00:00:00Z'\n"
     (tmp_path / "pyproject.toml").write_text(content)
     (tmp_path / "uv.lock").write_text("")
     result = audit.audit_python(str(tmp_path))
     assert result["uv_config"]["status"] == "fail"
     assert result["uv_config"]["require_hashes"] is False
+    # but the resolver-level cooldown fact is still recorded
+    assert result["uv_config"]["exclude_newer"] is not None
 
 
 # ---------------------------------------------------------------------------
