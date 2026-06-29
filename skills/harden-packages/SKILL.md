@@ -93,7 +93,8 @@ Each check has a `status` field: `"pass"`, `"warn"`, `"fail"`, or `"missing"`.
 **Interpretation notes:**
 
 - `nodejs.exact_pins.unpinned` — list of `dependencies`/`devDependencies` using `^`, `~`, or ranges. Any entry here is a real finding.
-- `nodejs.minimum_release_age.status: fail` — no cooldown configured for the detected manager. Recommend adding it.
+- `nodejs.minimum_release_age` / `python.uv_config.exclude_newer` / `rust.cooldown` — resolver-level cooldown *facts* (no standalone status). The cooldown verdict is the cross-cutting `cooldown` section below; `python.uv_config.status` now reflects hash verification (integrity) only.
+- `cooldown.status` / `cooldown.ecosystems.<eco>` — the release-age cooldown verdict. It is satisfied by **either** a resolver-level cooldown (uv `exclude-newer`, npm/pnpm/bun/yarn age gates, `cargo-cooldown`) **or** a Dependabot cooldown — not both. `warn` means both are configured: the resolver-level one has no security-update exception and blocks Dependabot's automated security updates (see the finding's `note`). `fail` means neither is configured. Recommend Dependabot (security fixes keep flowing). Driven by the `--cooldown-strategy` flag (`auto` default / `dependabot` / `resolver`).
 - `rust.exact_pins.loose` — Cargo entries without `=` prefix. Flag each one.
 - `terraform.exact_pins.loose` — provider version constraints that aren't `= X.Y.Z`. Flag each one and note this requires human approval to change.
 - `dependabot.ecosystems.<eco>.status: warn` — ecosystem is in dependabot.yml but has no `cooldown:` block.
@@ -217,9 +218,9 @@ If the user later says *"apply everything including badges"*, *"set up Scorecard
 
 If the user agrees (fully or partially), apply the fixes in this order — lower risk / non-breaking changes first:
 
-1. `pnpm-workspace.yaml` / `.npmrc` / `.yarnrc.yml` / `bunfig.toml` — add missing cooldown / trust policy config
-2. `pyproject.toml` — add `[tool.uv] exclude-newer = "7 days"` and `[tool.uv.pip] require-hashes = true / verify-hashes = true`. (Hash verification of artefacts resolved against `uv.lock` is automatic via `uv sync --frozen` — these `[tool.uv.pip]` flags only protect ad-hoc `uv pip install` invocations.)
-3. `.cargo/config.toml` — add `[cooldown]` block
+1. `pnpm-workspace.yaml` / `.npmrc` / `.yarnrc.yml` / `bunfig.toml` — add trust policy / build-script config. **Cooldown is a choice, not an add-on:** only add a resolver-level cooldown (`minimumReleaseAge` / `minimum-release-age` / `npmMinimalAgeGate`) if there is *no* Dependabot cooldown for the ecosystem. If Dependabot cooldown is present, do **not** add a resolver-level one — it would block Dependabot security autoupdates (see the `cooldown` interpretation note).
+2. `pyproject.toml` — add `[tool.uv.pip] require-hashes = true / verify-hashes = true` (hash verification; automatic for `uv sync --frozen`, these flags only protect ad-hoc `uv pip install`). Add `[tool.uv] exclude-newer` **only** if the repo is not relying on a Dependabot `uv`/`pip` cooldown — prefer the Dependabot cooldown so security fixes are not blocked.
+3. `.cargo/config.toml` — add a `[cooldown]` block **only** if there is no Dependabot `cargo` cooldown (same resolver-vs-Dependabot trade-off).
 4. `composer.json` — add `roave/security-advisories` dev dependency; tighten `^`/`~` pins to exact (flag for human review)
 5. Ruby CI — add `BUNDLE_FROZEN=true` and `bundle audit check` to CI workflow
 5a. .NET — add `<RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>` to `Directory.Build.props`; run `dotnet restore` locally and commit `packages.lock.json`; add `--locked-mode` and `dotnet list package --vulnerable --include-transitive` to CI; add `<packageSourceMapping>` to `nuget.config`

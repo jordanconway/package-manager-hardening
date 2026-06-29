@@ -91,8 +91,16 @@ within the configured age threshold, the install fails immediately.
 **Dependabot cooldown operates at the PR level on direct dependencies only.** When Dependabot
 opens a PR to update `express` from `4.18.2` to `4.19.2`, the cooldown delays that PR by the
 configured number of days. But the transitive packages that `express@4.19.2` introduces are
-not individually subject to cooldown. Dependabot cooldown is a useful secondary gate, not a
-replacement for a native resolver-level implementation.
+not individually subject to cooldown.
+
+**Resolver-level and Dependabot cooldown are the same control, not stackable layers.** A
+resolver-level cooldown covers more (full graph, transitives, local installs) but has **no
+security-update exception**, so combining it with a Dependabot cooldown blocks Dependabot's
+automated security updates. Choose one per ecosystem — for most repositories, prioritise the
+Dependabot cooldown so security fixes keep flowing automatically; reach for the resolver-level
+gate only when you specifically need transitive/local-install coverage and can accept manual
+per-package exemptions for security fixes. See
+[Cooldown: resolver-level vs Dependabot](dependabot.md#cooldown-resolver-level-vs-dependabot--pick-one).
 
 For the ❌ rows above, [Renovate's `minimumReleaseAge`](renovate.md) provides the same PR-level
 gate as Dependabot cooldown but works uniformly across all of Renovate's supported managers —

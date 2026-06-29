@@ -55,6 +55,7 @@ SECTION_DOCS = {
     "maven": "docs/jvm.md",
     "gradle": "docs/jvm.md",
     "dependabot": "docs/dependabot.md",
+    "cooldown": "docs/dependabot.md",
     "harden_runner": "docs/harden-runner.md",
 }
 
@@ -82,6 +83,7 @@ HINTS = {
     "repository_control": "Set FAIL_ON_PROJECT_REPOS; remove mavenLocal()/jcenter().",
     "reject_dynamic": "Configure failOnNonReproducibleResolution() or failOnDynamicVersions().",
     "dependabot": "Add the missing ecosystem entry with a cooldown block to .github/dependabot.yml.",
+    "cooldown": "Configure a release-age cooldown via Dependabot (recommended) or a resolver-level setting — not both.",
     "harden_runner": "Add step-security/harden-runner as the first step of every workflow.",
 }
 

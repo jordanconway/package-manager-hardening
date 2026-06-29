@@ -81,6 +81,8 @@ minimum-release-age=10080
 ```
 
 > **Note:** As of initial release, npm's `minimum-release-age` does not support per-package exclusions. An open issue tracks adding this capability for cases where urgent security patches need to bypass the delay.
+>
+> **Choose `minimum-release-age` *or* a Dependabot `npm` cooldown — not both.** They are the same release-age control at different layers, and the resolver-level one has no security-update exception, so combining them blocks Dependabot's automated security updates. For most repositories, prefer the Dependabot cooldown and omit `minimum-release-age`; use the resolver-level gate only when you need transitive/local-install coverage. See [Cooldown: resolver-level vs Dependabot](dependabot.md#cooldown-resolver-level-vs-dependabot--pick-one).
 
 ### Security: Audit and Signatures
 

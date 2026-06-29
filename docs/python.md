@@ -190,6 +190,8 @@ exclude-newer = "7 days"
 
 This causes uv to ignore any package version published within the last 7 days when resolving dependencies.
 
+> **Choose `exclude-newer` *or* a Dependabot `uv`/`pip` cooldown — not both.** They enforce the same release-age control at different layers. Unlike Dependabot, `exclude-newer` has **no security-update exception**: a just-published CVE fix is filtered out during resolution, so a Dependabot security PR becomes unsatisfiable and needs a manual version-floor bump, a per-package cooldown exemption, and a lockfile regeneration. For most repositories, prefer the Dependabot cooldown (security fixes keep flowing automatically) and omit `exclude-newer`. Use `exclude-newer` only when you need full-graph/transitive or local-install coverage, and then do not also run a Dependabot cooldown for Python. See [Cooldown: resolver-level vs Dependabot](dependabot.md#cooldown-resolver-level-vs-dependabot--pick-one).
+
 Per-package overrides (allow a specific package to bypass the cooldown):
 
 ```toml

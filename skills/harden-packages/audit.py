@@ -195,7 +195,11 @@ def audit_nodejs(root):
         "unpinned_count": len(loose),
     }
 
-    # Minimum release age
+    # Minimum release age (resolver-level cooldown facts only — no standalone
+    # status). The cooldown verdict is made by the cross-cutting
+    # assess_cooldown(), which is satisfied by EITHER this resolver-level
+    # setting OR a Dependabot cooldown (the two are the same control at
+    # different layers; requiring both breaks Dependabot security autoupdates).
     mra = {}
     if manager == "pnpm":
         ws = read(r / "pnpm-workspace.yaml")
@@ -203,24 +207,24 @@ def audit_nodejs(root):
         trust = find_value(ws, r"trustPolicy[:\s]+([^\s\n]+)")
         mra["minimumReleaseAge"] = age
         mra["trustPolicy"] = trust
-        mra["status"] = status(age is not None)
+        mra["configured"] = age is not None
     elif manager == "npm":
         npmrc = read(r / ".npmrc")
         age = find_value(npmrc, r"minimum-release-age\s*=\s*(\d+)")
         mra["minimum-release-age"] = age
-        mra["status"] = status(age is not None)
+        mra["configured"] = age is not None
     elif manager == "yarn":
         yarnrc = read(r / ".yarnrc.yml")
         age = find_value(yarnrc, r"npmMinimalAgeGate[:\s]+(\d+)")
         mra["npmMinimalAgeGate"] = age
-        mra["status"] = status(age is not None)
+        mra["configured"] = age is not None
     elif manager == "bun":
         bunfig = read(r / "bunfig.toml")
         age = find_value(bunfig, r'minimumReleaseAge\s*=\s*["\']?([^"\'\\n]+)')
         mra["minimumReleaseAge"] = age
-        mra["status"] = status(age is not None)
+        mra["configured"] = age is not None
     else:
-        mra["status"] = "unknown"
+        mra["configured"] = False
     findings["minimum_release_age"] = mra
 
     # Build script control
@@ -335,7 +339,11 @@ def audit_python(root):
             "exclude_newer": exclude_newer.strip() if exclude_newer else None,
             "require_hashes": require_hashes,
             "verify_hashes": verify_hashes,
-            "status": status(bool(exclude_newer) and require_hashes and verify_hashes),
+            # Status reflects hash verification (integrity) only. The
+            # exclude-newer cooldown is graded by the cross-cutting cooldown
+            # section — a Dependabot cooldown can satisfy that control without
+            # exclude-newer's lack of a security-update exception.
+            "status": status(require_hashes and verify_hashes),
         }
 
     # CI frozen install — three states:
@@ -455,14 +463,15 @@ def audit_rust(root):
         "loose_count": len(loose),
     }
 
-    # cargo-cooldown config
+    # cargo-cooldown config (resolver-level cooldown facts only — no standalone
+    # status; graded by the cross-cutting assess_cooldown()).
     config_toml = read(r / ".cargo" / "config.toml")
     cooldown_days = find_value(config_toml, r"\[cooldown\].*?days\s*=\s*(\d+)")
     if not cooldown_days:
         cooldown_days = find_value(config_toml, r"days\s*=\s*(\d+)")
     has_cooldown_section = grep(config_toml, r"\[cooldown\]")
     findings["cooldown"] = {
-        "status": status(has_cooldown_section and cooldown_days is not None),
+        "configured": bool(has_cooldown_section and cooldown_days is not None),
         "days": cooldown_days,
     }
 
@@ -1039,6 +1048,126 @@ def audit_dependabot(root, detected_ecosystems):
 
 
 # ---------------------------------------------------------------------------
+# Cooldown strategy assessment (cross-cutting)
+# ---------------------------------------------------------------------------
+
+# Ecosystems with a native resolver-level cooldown mechanism, and how to read
+# "is it configured" from the assembled report. These are the only ecosystems
+# where a resolver-level vs PR-level (Dependabot) conflict can arise; the rest
+# rely on Dependabot/Renovate cooldown alone (covered by the dependabot audit).
+COOLDOWN_STRATEGIES = ("auto", "dependabot", "resolver")
+
+
+def _resolver_cooldown_present(report, eco):
+    if eco == "python":
+        return bool(report.get("python", {}).get("uv_config", {}).get("exclude_newer"))
+    if eco == "nodejs":
+        return bool(report.get("nodejs", {}).get("minimum_release_age", {}).get("configured"))
+    if eco == "rust":
+        return bool(report.get("rust", {}).get("cooldown", {}).get("configured"))
+    return False
+
+
+NATIVE_COOLDOWN_ECOSYSTEMS = ("nodejs", "python", "rust")
+
+_RESOLVER_HINT = {
+    "python": "exclude-newer in [tool.uv]",
+    "nodejs": "the package manager's minimum-release-age setting",
+    "rust": "cargo-cooldown in .cargo/config.toml",
+}
+
+_CONFLICT_NOTE = (
+    "Both a resolver-level cooldown ({resolver}) and a Dependabot cooldown are configured. "
+    "They are the same control at different layers, but the resolver-level cooldown has no "
+    "security-update exception, so it blocks Dependabot's automated security updates — forcing "
+    "manual version bumps, per-package exemptions, and lockfile regeneration. Prefer one: "
+    "Dependabot cooldown keeps security fixes flowing without manual lockfile edits."
+)
+
+
+def assess_cooldown(report, detected_ecosystems, strategy="auto"):
+    """Cross-cutting cooldown verdict.
+
+    The minimum-release-age control can be satisfied at the resolver level (uv
+    exclude-newer, npm/pnpm/bun/yarn age gates, cargo-cooldown) or at the PR
+    level (Dependabot cooldown). They are mutually substitutable; configuring
+    both is counter-productive because resolver-level gates have no
+    security-update exception. `strategy` controls how that choice is graded.
+    """
+    dep = report.get("dependabot", {})
+    dep_ecos = dep.get("ecosystems", {}) if isinstance(dep, dict) else {}
+
+    def dependabot_cooldown(eco):
+        entry = dep_ecos.get(eco)
+        return isinstance(entry, dict) and bool(entry.get("cooldown_configured"))
+
+    eco_findings = {}
+    for eco in detected_ecosystems:
+        if eco not in NATIVE_COOLDOWN_ECOSYSTEMS:
+            continue
+        resolver = _resolver_cooldown_present(report, eco)
+        dependabot = dependabot_cooldown(eco)
+        entry = {"resolver_level": resolver, "dependabot_cooldown": dependabot}
+
+        if strategy == "dependabot":
+            if not dependabot:
+                entry["status"] = "fail"
+                entry["note"] = (
+                    "Strategy is 'dependabot' but no Dependabot cooldown is configured for this "
+                    "ecosystem. Add a cooldown block to .github/dependabot.yml."
+                )
+            elif resolver:
+                entry["status"] = "warn"
+                entry["note"] = (
+                    f"Strategy is 'dependabot'. A resolver-level cooldown ({_RESOLVER_HINT[eco]}) is also "
+                    "configured — it is redundant and blocks Dependabot's automated security updates. "
+                    "Remove it and rely on the Dependabot cooldown."
+                )
+            else:
+                entry["status"] = "pass"
+        elif strategy == "resolver":
+            if not resolver:
+                entry["status"] = "fail"
+                entry["note"] = (
+                    f"Strategy is 'resolver' but no resolver-level cooldown ({_RESOLVER_HINT[eco]}) is configured."
+                )
+            else:
+                entry["status"] = "pass"
+        else:  # auto
+            if resolver and dependabot:
+                entry["status"] = "warn"
+                entry["note"] = _CONFLICT_NOTE.format(resolver=_RESOLVER_HINT[eco])
+            elif resolver or dependabot:
+                entry["status"] = "pass"
+            else:
+                entry["status"] = "fail"
+                entry["note"] = (
+                    "No release-age cooldown configured. Add a Dependabot cooldown (recommended — "
+                    f"keeps security autoupdates working) or a resolver-level cooldown ({_RESOLVER_HINT[eco]})."
+                )
+        eco_findings[eco] = entry
+
+    if not eco_findings:
+        return None
+
+    if any(e["status"] == "fail" for e in eco_findings.values()):
+        overall = "fail"
+    elif any(e["status"] == "warn" for e in eco_findings.values()):
+        overall = "warn"
+    else:
+        overall = "pass"
+
+    result = {"strategy": strategy, "status": overall, "ecosystems": eco_findings}
+    if overall == "warn":
+        result["note"] = (
+            "Release-age cooldown is configured, but see the per-ecosystem rows — a resolver-level and "
+            "Dependabot cooldown are both present (redundant; the resolver-level one blocks security "
+            "autoupdates), or the chosen strategy flags it."
+        )
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Harden-Runner audit
 # ---------------------------------------------------------------------------
 
@@ -1143,6 +1272,17 @@ def main():
     parser = argparse.ArgumentParser(description="Harden-packages audit data collector")
     parser.add_argument("--path", default=".", help="Path to repository root")
     parser.add_argument("--pretty", action="store_true", help="Pretty-print JSON output")
+    parser.add_argument(
+        "--cooldown-strategy",
+        choices=COOLDOWN_STRATEGIES,
+        default="auto",
+        help=(
+            "How to grade the release-age cooldown control. 'auto' (default): satisfied by a "
+            "resolver-level OR Dependabot cooldown; warns if both are configured. 'dependabot': "
+            "require a Dependabot cooldown and flag redundant resolver-level cooldowns. 'resolver': "
+            "require a resolver-level cooldown."
+        ),
+    )
     args = parser.parse_args()
 
     root = os.path.abspath(args.path)
@@ -1178,6 +1318,9 @@ def main():
                 report[eco] = {"error": str(e)}
 
     report["dependabot"] = audit_dependabot(root, detected)
+    cooldown = assess_cooldown(report, detected, strategy=args.cooldown_strategy)
+    if cooldown is not None:
+        report["cooldown"] = cooldown
     report["harden_runner"] = audit_harden_runner(root)
 
     indent = 2 if args.pretty else None

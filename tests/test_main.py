@@ -73,7 +73,10 @@ def test_nodejs_repo_detected(tmp_path):
     assert "nodejs" in report
     assert report["nodejs"]["lockfile"]["status"] == "pass"
     assert report["nodejs"]["exact_pins"]["status"] == "pass"
-    assert report["nodejs"]["minimum_release_age"]["status"] == "pass"
+    # Resolver-level cooldown is now a fact (no standalone status); the verdict
+    # lives in the cross-cutting cooldown section.
+    assert report["nodejs"]["minimum_release_age"]["configured"] is True
+    assert report["cooldown"]["ecosystems"]["nodejs"]["resolver_level"] is True
 
 
 def test_nodejs_loose_pins_detected(tmp_path):
