@@ -4,6 +4,6 @@
   "description": "Pinned npm tooling for CI (not published).",
   "license": "MIT",
   "devDependencies": {
-    "markdownlint-cli2": "0.22.1"
+    "markdownlint-cli2": "0.23.0"
   }
 }
