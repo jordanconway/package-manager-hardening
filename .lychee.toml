@@ -15,7 +15,7 @@ max_retries = 3
 timeout = 20
 
 # Skip anchors (fragment URLs like #section) — these require full HTML parsing
-include_fragments = false
+include_fragments = "none"
 
 # Exclude known-flaky or auth-gated URLs
 exclude = [
