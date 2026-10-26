@@ -17,8 +17,10 @@ This catches:
   - Crashes on malformed YAML, TOML, JSON, or workflow files
   - Crashes on empty / huge / null-byte-laden inputs
 
-Satisfies OpenSSF Scorecard's "Fuzzing" check (recognises Hypothesis as a
-fuzzing tool for Python projects).
+Note: this suite does *not* satisfy OpenSSF Scorecard's "Fuzzing" check --
+Scorecard's Python detector matches `import atheris` only, so the Atheris
+harnesses in fuzz/ are what earn that check. The two are complementary; see
+fuzz/README.md.
 """
 
 from __future__ import annotations

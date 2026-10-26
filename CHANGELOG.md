@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- New [`tests/test_fuzz_harness_contract.py`](tests/test_fuzz_harness_contract.py) guards the `fuzz/` harnesses against the silent drift that left them broken for weeks. It stubs `atheris` so it runs in the ordinary PR suite (atheris ships Linux x86_64 wheels only and is deliberately not a dev dependency), drives each harness's real `TestOneInput` over adversarial inputs to catch signature drift and fixture-setup crashes, and AST-compares the regex corpora in `fuzz_audit_helpers.py` against the patterns `audit.py` actually uses so the two cannot diverge. Verified to catch all three bugs found in the previous entry, plus pattern additions/edits, a renamed audit function, and a `find_value` pattern losing its capturing group. Adds 8 tests, ~0.1s.
+
 ### Fixed
 
 - The weekly [`Fuzz`](.github/workflows/fuzz.yml) workflow was failing at `Install Atheris` with `No matching distribution found for atheris==3.1.0`. Atheris 3.1.0 dropped the `cp311` wheel (it now ships `cp312`/`cp313`/`cp314`) **and stopped publishing an sdist**, so the job's `python-version: "3.11"` pin had no installable artifact and no source-build fallback. The job now pins Python 3.13. The hash-pinned `atheris==3.1.0` in [`fuzz/requirements.txt`](fuzz/requirements.txt) is unchanged and its hashes verify against PyPI.
@@ -20,6 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - Corrected the claim that Atheris "only ships wheels for Linux x86_64 + Python ≤ 3.11", which has been inverted since atheris 3.1.0. The supported CPython ABIs vary per atheris release, so [`docs/github-actions.md`](docs/github-actions.md), [`fuzz/README.md`](fuzz/README.md), [`agents/AGENTS-github-actions.md`](agents/AGENTS-github-actions.md), [`.github/dependabot.yml`](.github/dependabot.yml), and the `Fuzz` workflow header now tell readers to check the wheels for the version they pin and to keep the workflow's `python-version` in step with it, rather than naming a fixed ceiling that goes stale on the next bump.
+- `tests/test_fuzz.py`'s docstring still claimed the Hypothesis suite satisfies OpenSSF Scorecard's `Fuzzing` check. Release 0.4.0 documented that claim as wrong and corrected it in four other files, but missed this one; it now points at the Atheris harnesses, which are what Scorecard's Python detector actually matches.
 
 ## [0.4.3] - 2026-06-29
 
