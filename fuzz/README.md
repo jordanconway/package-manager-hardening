@@ -21,11 +21,11 @@ This setup also satisfies [OpenSSF Scorecard's `Fuzzing` check](https://github.c
 
 ## Running locally
 
-Atheris ships pre-built wheels for Linux x86_64 + Python ≤ 3.11. On macOS or with Python ≥ 3.12 you'll need to build from source against an LLVM/clang install — easier to use the CI workflow or a Linux VM/container.
+Atheris ships pre-built wheels for Linux x86_64 only, and only for the CPython ABI versions a given release builds — which changes between releases. The currently pinned `atheris==3.1.0` ships `cp312`/`cp313`/`cp314` wheels and **no sdist**, so anything outside that range fails to resolve rather than falling back to a source build. Check the wheels on PyPI whenever the pin moves. On macOS, or on a Python with no matching wheel, you'd need to build from source against an LLVM/clang install — easier to use the CI workflow or a Linux VM/container.
 
 ```bash
-# Linux + Python 3.11
-python3.11 -m venv .venv-fuzz
+# Linux + a Python the pinned atheris has a wheel for (3.13 as of atheris 3.1.0)
+python3.13 -m venv .venv-fuzz
 source .venv-fuzz/bin/activate
 pip install atheris
 

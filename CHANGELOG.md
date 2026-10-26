@@ -12,6 +12,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- The weekly [`Fuzz`](.github/workflows/fuzz.yml) workflow was failing at `Install Atheris` with `No matching distribution found for atheris==3.1.0`. Atheris 3.1.0 dropped the `cp311` wheel (it now ships `cp312`/`cp313`/`cp314`) **and stopped publishing an sdist**, so the job's `python-version: "3.11"` pin had no installable artifact and no source-build fallback. The job now pins Python 3.13. The hash-pinned `atheris==3.1.0` in [`fuzz/requirements.txt`](fuzz/requirements.txt) is unchanged and its hashes verify against PyPI.
+- Two fuzz harnesses had silently drifted while the `Fuzz` workflow was red, and failed on their first input once it ran again. [`fuzz/fuzz_audit_parsers.py`](fuzz/fuzz_audit_parsers.py) called `audit_dependabot(root)` although the function gained a `detected_ecosystems` parameter in the cooldown work (PR #63); it now mirrors `audit.py` `main`. [`fuzz/fuzz_audit_helpers.py`](fuzz/fuzz_audit_helpers.py) passed fuzzer-generated regexes as the *pattern* to `grep()` and `find_value()` — `audit.py` never takes a user-supplied pattern, only untrusted content, and `find_value` is documented to return the first captured group, so a pattern with no group raises by contract. It now fuzzes content against the real patterns copied verbatim from `audit.py`, and no longer asserts on failures from its own fixture setup (a NUL byte in a generated filename made `pathlib` raise before the function under test was reached). Neither failure was a defect in `audit.py`.
+
+### Changed
+
+- Corrected the claim that Atheris "only ships wheels for Linux x86_64 + Python ≤ 3.11", which has been inverted since atheris 3.1.0. The supported CPython ABIs vary per atheris release, so [`docs/github-actions.md`](docs/github-actions.md), [`fuzz/README.md`](fuzz/README.md), [`agents/AGENTS-github-actions.md`](agents/AGENTS-github-actions.md), [`.github/dependabot.yml`](.github/dependabot.yml), and the `Fuzz` workflow header now tell readers to check the wheels for the version they pin and to keep the workflow's `python-version` in step with it, rather than naming a fixed ceiling that goes stale on the next bump.
+
 ## [0.4.3] - 2026-06-29
 
 Patch release: cooldown policy semantics are now explicit and strategy-driven, so resolver-level and Dependabot cooldowns are treated as alternative controls (with clear warnings when both are configured).

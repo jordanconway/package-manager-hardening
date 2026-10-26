@@ -5,8 +5,12 @@
 # Coverage-guided fuzzing with Atheris.
 #
 # Runs each fuzz harness in fuzz/ for a fixed wall-clock budget. Atheris ships
-# pre-built wheels only for Linux x86_64 + Python 3.11, so the job pins to
-# ubuntu-24.04 + Python 3.11 specifically.
+# pre-built wheels for Linux x86_64 only, and for a specific set of CPython ABI
+# versions that changes from release to release. Since 3.1.0 it also ships no
+# sdist, so an unsupported interpreter has no source-build fallback -- it just
+# fails to resolve. The job therefore pins ubuntu-24.04 plus an interpreter the
+# pinned version actually has a wheel for; see fuzz/requirements.txt for which
+# that is, and re-check it whenever the pin moves.
 #
 # This workflow is deliberately scheduled (weekly + manual), not gated on PRs:
 #   - PR runs use Hypothesis (tests/test_fuzz.py) which is fast and broad.
@@ -63,7 +67,7 @@ jobs:
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.11"  # atheris wheels only ship for <= 3.11
+          python-version: "3.13"  # atheris 3.1.0 ships cp312/cp313/cp314 wheels only
 
       - name: Install Atheris
         run: python -m pip install --require-hashes -r fuzz/requirements.txt

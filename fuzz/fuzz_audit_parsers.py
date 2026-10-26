@@ -73,7 +73,13 @@ def TestOneInput(data: bytes) -> None:
 
         fn = getattr(audit, fn_name)
         try:
-            fn(str(root))
+            # audit_dependabot is cross-cutting: production calls it with the
+            # ecosystems detect_ecosystems() found (see audit.py `main`), so
+            # mirror that instead of calling it bare.
+            if fn_name == "audit_dependabot":
+                fn(str(root), audit.detect_ecosystems(str(root)))
+            else:
+                fn(str(root))
         except Exception as exc:
             # Any unhandled exception is a bug. Atheris will minimise the input
             # and report the reproducer.

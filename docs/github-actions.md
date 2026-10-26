@@ -466,7 +466,7 @@ OpenSSF Scorecard's [`Fuzzing` check](https://github.com/ossf/scorecard/blob/mai
 
 The two tools serve different purposes; do both:
 
-- **Atheris** — coverage-guided libFuzzer for Python. Watches which branches each input exercises and mutates toward unexplored ones. Catches deep parser bugs, ReDoS, encoding edge cases. Recognised by Scorecard. Wheels only ship for Linux x86_64 + Python ≤ 3.11; doesn't run on macOS without building from source.
+- **Atheris** — coverage-guided libFuzzer for Python. Watches which branches each input exercises and mutates toward unexplored ones. Catches deep parser bugs, ReDoS, encoding edge cases. Recognised by Scorecard. Wheels ship for Linux x86_64 only, and only for the CPython ABI versions each release builds (3.1.0 is `cp312`–`cp314`, and ships no sdist); doesn't run on macOS without building from source.
 - **Hypothesis** — property-based testing. Blind random generation against declarative invariants. Fast, runs on every PR, catches contract violations property tests are good at. **Not** recognised by Scorecard.
 
 Layout:
@@ -518,7 +518,7 @@ jobs:
       - uses: actions/checkout@<sha>
         with: { persist-credentials: false }
       - uses: actions/setup-python@<sha>
-        with: { python-version: "3.11" }  # atheris wheels: <= 3.11 only
+        with: { python-version: "3.13" }  # must match a wheel the pinned atheris ships
       - run: python -m pip install --require-hashes -r fuzz/requirements.txt
       - run: |
           mkdir -p fuzz-artifacts
