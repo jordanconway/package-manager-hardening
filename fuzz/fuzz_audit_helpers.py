@@ -112,13 +112,20 @@ def TestOneInput(data: bytes) -> None:
         # is_gitignored writes a .gitignore and queries it.
         gi_content = fdp.ConsumeUnicode(2048)
         path = fdp.ConsumeUnicode(256)
+        # Production paths come from a filesystem walk and never contain NUL,
+        # so a NUL here would only test pathlib's own argument validation.
+        if "\x00" in path:
+            return
         with tempfile.TemporaryDirectory() as d:
             root = pathlib.Path(d)
+            # Fixture setup: a failure to lay down the .gitignore is not a
+            # finding, so it must not reach the assertion below.
             try:
                 (root / ".gitignore").write_text(gi_content, errors="replace")
-                audit.is_gitignored(str(root), path)
-            except OSError:
+            except (OSError, ValueError):
                 return
+            try:
+                audit.is_gitignored(str(root), path)
             except Exception as exc:
                 raise AssertionError(
                     f"is_gitignored raised on adversarial input: "
@@ -132,13 +139,16 @@ def TestOneInput(data: bytes) -> None:
             root = pathlib.Path(d)
             for _ in range(fdp.ConsumeIntInRange(0, 8)):
                 name = fdp.ConsumeUnicode(64)
-                # Skip path-traversal attempts; the function isn't expected
-                # to defend against malicious filesystems.
-                if "/" in name or ".." in name or not name.strip():
+                # Skip path-traversal attempts and names the filesystem cannot
+                # represent; the function isn't expected to defend against
+                # malicious filesystems, and a NUL byte makes pathlib raise
+                # ValueError during *setup*, before detect_ecosystems is ever
+                # reached.
+                if "/" in name or ".." in name or "\x00" in name or not name.strip():
                     continue
                 try:
                     (root / name).write_bytes(fdp.ConsumeBytes(256))
-                except OSError:
+                except (OSError, ValueError):
                     continue
             try:
                 audit.detect_ecosystems(str(root))
