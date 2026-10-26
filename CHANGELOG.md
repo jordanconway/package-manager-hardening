@@ -12,6 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- The weekly [`Fuzz`](.github/workflows/fuzz.yml) workflow was failing at `Install Atheris` with `No matching distribution found for atheris==3.1.0`. Atheris 3.1.0 dropped the `cp311` wheel (it now ships `cp312`/`cp313`/`cp314`) **and stopped publishing an sdist**, so the job's `python-version: "3.11"` pin had no installable artifact and no source-build fallback. The job now pins Python 3.13. The hash-pinned `atheris==3.1.0` in [`fuzz/requirements.txt`](fuzz/requirements.txt) is unchanged and its hashes verify against PyPI.
+
+### Changed
+
+- Corrected the claim that Atheris "only ships wheels for Linux x86_64 + Python ≤ 3.11", which has been inverted since atheris 3.1.0. The supported CPython ABIs vary per atheris release, so [`docs/github-actions.md`](docs/github-actions.md), [`fuzz/README.md`](fuzz/README.md), [`agents/AGENTS-github-actions.md`](agents/AGENTS-github-actions.md), [`.github/dependabot.yml`](.github/dependabot.yml), and the `Fuzz` workflow header now tell readers to check the wheels for the version they pin and to keep the workflow's `python-version` in step with it, rather than naming a fixed ceiling that goes stale on the next bump.
+
 ## [0.4.3] - 2026-06-29
 
 Patch release: cooldown policy semantics are now explicit and strategy-driven, so resolver-level and Dependabot cooldowns are treated as alternative controls (with clear warnings when both are configured).

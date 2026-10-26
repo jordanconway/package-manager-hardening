@@ -89,9 +89,11 @@ updates:
       semver-minor-days: 7
       semver-patch-days: 3
 
-  # Atheris fuzzer (separate from main dev deps because it only ships
-  # wheels for Linux + Python <= 3.11; lives in fuzz/requirements.txt
-  # with --require-hashes pinning).
+  # Atheris fuzzer (separate from main dev deps because it ships wheels for
+  # Linux x86_64 only, and only for the CPython ABI versions each release
+  # happens to build -- check the wheels when this pin moves, and bump
+  # .github/workflows/fuzz.yml to match; lives in fuzz/requirements.txt with
+  # --require-hashes pinning).
   - package-ecosystem: "pip"
     directory: "/fuzz"
     schedule:

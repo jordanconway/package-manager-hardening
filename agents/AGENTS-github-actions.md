@@ -79,7 +79,7 @@ Every repository with parser-style code (anything that consumes external file co
 
 Minimum viable per language:
 
-- **Python** — `import atheris` in a `fuzz/` harness, hash-pinned in `fuzz/requirements.txt`. Atheris is coverage-guided libFuzzer; only ships wheels for Linux x86_64 + Python ≤ 3.11. Run on a scheduled workflow (weekly), not per-PR (too slow). Keep Hypothesis property tests in `tests/test_fuzz.py` alongside — different bug class, fast enough for PRs.
+- **Python** — `import atheris` in a `fuzz/` harness, hash-pinned in `fuzz/requirements.txt`. Atheris is coverage-guided libFuzzer; ships wheels for Linux x86_64 only, and only for the CPython ABI versions each release builds (3.1.0 is `cp312`–`cp314`, with no sdist fallback), so pin the workflow's `python-version` to match the pinned atheris and re-check on every bump. Run on a scheduled workflow (weekly), not per-PR (too slow). Keep Hypothesis property tests in `tests/test_fuzz.py` alongside — different bug class, fast enough for PRs.
 - **Go** — `func FuzzXxx(f *testing.F)` targets; run as part of CI.
 - **Rust** — `cargo-fuzz` targets under `fuzz/`.
 - **C / C++** — `LLVMFuzzerTestOneInput` harnesses, integrated via ClusterFuzzLite (`.clusterfuzzlite/Dockerfile`) or OSS-Fuzz.
