@@ -61,13 +61,13 @@ def test_grep_with_flags():
 
 
 def test_find_value_match():
-    content = "minimum-release-age = 10080\n"
-    result = audit.find_value(content, r"minimum-release-age\s*=\s*(\d+)")
-    assert result == "10080"
+    content = "min-release-age = 7\n"
+    result = audit.find_value(content, r"min-release-age\s*=\s*(\d+)")
+    assert result == "7"
 
 
 def test_find_value_no_match():
-    assert audit.find_value("no match here", r"minimum-release-age\s*=\s*(\d+)") is None
+    assert audit.find_value("no match here", r"min-release-age\s*=\s*(\d+)") is None
 
 
 def test_status_true():

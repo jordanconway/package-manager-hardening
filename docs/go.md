@@ -59,15 +59,25 @@ go get github.com/gin-gonic/gin@v1.10.0     # update to specific version
 Go verifies all module downloads against `sum.golang.org` by default. This provides cryptographic integrity guarantees without requiring a lockfile.
 
 ```bash
-# Disable checksum database (not recommended)
-GONOSUMDB="github.com/my-private-repo/*"
-
-# Use a custom checksum database
+# The default checksum database. Leave this alone.
 GOSUMDB="sum.golang.org"
 
-# Bypass sum check entirely (use with caution)
-GONOSUMCHECK="github.com/internal/*"
+# Skip the checksum database for matching module paths only (private modules)
+GONOSUMDB="github.com/my-private-repo/*"
 ```
+
+Three settings turn checksum-database verification off for **every** module. Never use them
+in CI for a project that depends on public modules:
+
+```bash
+GOSUMDB=off        # disables the checksum database entirely
+GONOSUMDB='*'      # matches every module path
+GOPRIVATE='*'      # same effect: GONOSUMDB and GONOPROXY default to GOPRIVATE
+```
+
+With any of these, `go` accepts a module it has not seen before without authenticating it;
+only hashes already recorded in `go.sum` are still checked. `GOINSECURE` does not disable
+checksum validation, and there is no `GONOSUMCHECK` variable — Go ignores it.
 
 ## Module Proxy Configuration
 

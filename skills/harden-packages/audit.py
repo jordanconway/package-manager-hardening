@@ -62,6 +62,19 @@ def find_value(content, key_pattern):
     return m.group(1) if m else None
 
 
+def clean_value(raw):
+    """Strip whitespace and surrounding quotes from a captured config value."""
+    if raw is None:
+        return None
+    value = raw.strip().strip("\"'").strip()
+    return value or None
+
+
+def is_positive_int(value):
+    """True when value is a bare, non-zero decimal integer string."""
+    return bool(value) and value.isdigit() and int(value) > 0
+
+
 def workflow_files(root):
     wf_dir = Path(root) / ".github" / "workflows"
     if not wf_dir.is_dir():
@@ -203,26 +216,39 @@ def audit_nodejs(root):
     mra = {}
     if manager == "pnpm":
         ws = read(r / "pnpm-workspace.yaml")
-        age = find_value(ws, r'minimumReleaseAge[:\s]+["\']?([^\s"\']+)')
+        # pnpm takes a bare number of MINUTES. A duration string ("7 days") is
+        # not a valid value on any pnpm release, so it is reported, not counted.
+        age = clean_value(find_value(ws, r"(?m)^[ \t]*minimumReleaseAge[ \t]*:[ \t]*([^#\r\n]*)"))
         trust = find_value(ws, r"trustPolicy[:\s]+([^\s\n]+)")
         mra["minimumReleaseAge"] = age
         mra["trustPolicy"] = trust
-        mra["configured"] = age is not None
+        mra["configured"] = is_positive_int(age)
+        if age is not None and not age.isdigit():
+            mra["invalid_value"] = "minimumReleaseAge must be a number of minutes (e.g. 10080)"
     elif manager == "npm":
         npmrc = read(r / ".npmrc")
-        age = find_value(npmrc, r"minimum-release-age\s*=\s*(\d+)")
-        mra["minimum-release-age"] = age
-        mra["configured"] = age is not None
+        # npm's key is `min-release-age`, in DAYS (npm >= 11.10).
+        # `minimum-release-age` is pnpm 10's .npmrc spelling; npm ignores it.
+        age = find_value(npmrc, r"(?m)^[ \t]*min-release-age[ \t]*=[ \t]*(\d+)")
+        mra["min-release-age"] = age
+        mra["configured"] = is_positive_int(age)
+        if grep(npmrc, r"(?m)^[ \t]*minimum-release-age[ \t]*="):
+            mra["unsupported_key"] = "minimum-release-age is not an npm setting; use min-release-age (days)"
     elif manager == "yarn":
         yarnrc = read(r / ".yarnrc.yml")
-        age = find_value(yarnrc, r"npmMinimalAgeGate[:\s]+(\d+)")
+        # A bare number is MINUTES; Yarn >= 4.11 also accepts "7d" / "1w".
+        age = find_value(yarnrc, r"(?m)^[ \t]*npmMinimalAgeGate[ \t]*:[ \t]*[\"']?(\d+(?:ms|s|m|h|d|w)?)\b")
         mra["npmMinimalAgeGate"] = age
-        mra["configured"] = age is not None
+        mra["configured"] = bool(age) and not re.fullmatch(r"0+\D*", age)
     elif manager == "bun":
         bunfig = read(r / "bunfig.toml")
-        age = find_value(bunfig, r'minimumReleaseAge\s*=\s*["\']?([^"\'\\n]+)')
+        # A number of SECONDS. Duration strings need Bun >= 1.4.4; earlier
+        # releases reject the whole bunfig.
+        age = clean_value(find_value(bunfig, r"(?m)^[ \t]*minimumReleaseAge[ \t]*=[ \t]*([^#\r\n]*)"))
         mra["minimumReleaseAge"] = age
-        mra["configured"] = age is not None
+        mra["configured"] = bool(age) and age != "0"
+        if age is not None and not age.isdigit():
+            mra["requires"] = "duration strings need Bun >= 1.4.4; use a number of seconds for older releases"
     else:
         mra["configured"] = False
     findings["minimum_release_age"] = mra
@@ -231,14 +257,34 @@ def audit_nodejs(root):
     bsc = {}
     if manager == "pnpm":
         ws = read(r / "pnpm-workspace.yaml")
-        bsc["onlyBuiltDependencies"] = grep(ws, r"onlyBuiltDependencies")
-        bsc["ignoredBuiltDependencies"] = grep(ws, r"ignoredBuiltDependencies")
-        bsc["status"] = status(bsc["onlyBuiltDependencies"] or bsc["ignoredBuiltDependencies"])
+        # `allowBuilds` (pnpm >= 10.26) is the only form pnpm 11+ reads. The
+        # legacy keys still work on pnpm 10, so they downgrade to a warning.
+        bsc["allowBuilds"] = grep(ws, r"(?m)^[ \t]*allowBuilds[ \t]*:")
+        bsc["onlyBuiltDependencies"] = grep(ws, r"(?m)^[ \t]*onlyBuiltDependencies[ \t]*:")
+        bsc["ignoredBuiltDependencies"] = grep(ws, r"(?m)^[ \t]*ignoredBuiltDependencies[ \t]*:")
+        if bsc["allowBuilds"]:
+            bsc["status"] = "pass"
+        elif bsc["onlyBuiltDependencies"] or bsc["ignoredBuiltDependencies"]:
+            bsc["status"] = "warn"
+            bsc["note"] = "onlyBuiltDependencies / ignoredBuiltDependencies were removed in pnpm 11; use allowBuilds"
+        else:
+            bsc["status"] = "fail"
     elif manager == "bun":
         bunfig = read(r / "bunfig.toml")
-        bsc["lifecycleScripts_false"] = grep(bunfig, r"lifecycleScripts\s*=\s*false")
-        bsc["trustedDependencies"] = grep(bunfig, r"trustedDependencies")
-        bsc["status"] = status(bsc["lifecycleScripts_false"])
+        # `ignoreScripts = true` disables every lifecycle script. An explicit
+        # `trustedDependencies` in package.json replaces Bun's default-trusted
+        # list. Bun reads neither `lifecycleScripts` nor a bunfig
+        # `trustedDependencies` table, so those are reported but never pass.
+        bsc["ignoreScripts"] = grep(bunfig, r"(?m)^[ \t]*ignoreScripts[ \t]*=[ \t]*true\b")
+        bsc["trustedDependencies"] = isinstance(pkg.get("trustedDependencies"), list)
+        unsupported = []
+        if grep(bunfig, r"lifecycleScripts\s*="):
+            unsupported.append("lifecycleScripts")
+        if grep(bunfig, r"(?m)^[ \t]*\[install\.trustedDependencies\]"):
+            unsupported.append("[install.trustedDependencies]")
+        if unsupported:
+            bsc["unsupported_bunfig_keys"] = unsupported
+        bsc["status"] = status(bsc["ignoreScripts"] or bsc["trustedDependencies"])
     else:
         bsc["status"] = "n/a"
     findings["build_script_control"] = bsc
@@ -414,13 +460,24 @@ def audit_go(root):
         "bad_refs": list(set(bad_refs)),
     }
 
-    # GONOSUMDB / GONOSUMCHECK set to * (disabling all sum checks)
+    # Checksum database disabled for every module. Three equivalent forms:
+    # GOSUMDB=off, GONOSUMDB=*, and GOPRIVATE=* (GONOSUMDB defaults to
+    # GOPRIVATE). Scoped patterns such as `*.corp.example.com` are fine.
     wfs = workflow_files(root)
     all_wf = "\n".join(wfs.values())
-    gonosumdb_all = grep(all_wf, r"GONOSUMDB\s*[=:]\s*['\"]?\*['\"]?|GONOSUMCHECK\s*[=:]\s*['\"]?\*['\"]?")
+    wildcard = r"(?:^|,)\*(?:,|$)"
+    gonosumdb_all = any(
+        grep(v, wildcard) for v in re.findall(r"(?<![A-Z_])GONOSUMDB[ \t]*[=:][ \t]*['\"]?([^'\"\s#]*)", all_wf)
+    )
+    goprivate_all = any(
+        grep(v, wildcard) for v in re.findall(r"(?<![A-Z_])GOPRIVATE[ \t]*[=:][ \t]*['\"]?([^'\"\s#]*)", all_wf)
+    )
+    gosumdb_off = grep(all_wf, r"(?<![A-Z_])GOSUMDB[ \t]*[=:][ \t]*['\"]?off\b")
     findings["sum_database"] = {
-        "status": status(not gonosumdb_all),
+        "status": status(not (gonosumdb_all or goprivate_all or gosumdb_off)),
         "gonosumdb_wildcard": gonosumdb_all,
+        "goprivate_wildcard": goprivate_all,
+        "gosumdb_off": gosumdb_off,
     }
 
     # CI checks
@@ -463,17 +520,31 @@ def audit_rust(root):
         "loose_count": len(loose),
     }
 
-    # cargo-cooldown config (resolver-level cooldown facts only — no standalone
+    # Minimum publish age (resolver-level cooldown facts only — no standalone
     # status; graded by the cross-cutting assess_cooldown()).
-    config_toml = read(r / ".cargo" / "config.toml")
-    cooldown_days = find_value(config_toml, r"\[cooldown\].*?days\s*=\s*(\d+)")
-    if not cooldown_days:
-        cooldown_days = find_value(config_toml, r"days\s*=\s*(\d+)")
-    has_cooldown_section = grep(config_toml, r"\[cooldown\]")
-    findings["cooldown"] = {
-        "configured": bool(has_cooldown_section and cooldown_days is not None),
-        "days": cooldown_days,
+    #
+    # Two things read `global-min-publish-age`: Cargo itself (>= 1.100) from
+    # `.cargo/config.toml`, and the cargo-cooldown plugin (>= 0.3.1) from
+    # `cooldown.toml`. Nothing reads `[cooldown] days = N` in
+    # `.cargo/config.toml`, so that form is reported but never counted.
+    config_toml = read(r / ".cargo" / "config.toml") or read(r / ".cargo" / "config")
+    cooldown_toml = read(r / "cooldown.toml")
+    native_age = clean_value(
+        find_value(config_toml, r"(?m)^[ \t]*(?:registry\.)?global-min-publish-age[ \t]*=[ \t]*([^#\r\n]*)")
+    )
+    plugin_age = clean_value(find_value(cooldown_toml, r"(?m)^[ \t]*global-min-publish-age[ \t]*=[ \t]*([^#\r\n]*)"))
+    age = native_age or plugin_age
+    cooldown = {
+        "configured": bool(age) and age != "0",
+        "global_min_publish_age": age,
+        "source": (".cargo/config.toml" if native_age else "cooldown.toml") if age else None,
     }
+    if grep(config_toml, r"(?m)^[ \t]*\[cooldown\]"):
+        cooldown["unsupported_table"] = (
+            "[cooldown] in .cargo/config.toml is read by neither cargo nor cargo-cooldown; "
+            'use [registry] global-min-publish-age = "7 days" (cargo >= 1.100)'
+        )
+    findings["cooldown"] = cooldown
 
     # CI
     wfs = workflow_files(root)
@@ -690,11 +761,25 @@ def audit_dotnet(root):
     wfs = workflow_files(root)
     all_wf = "\n".join(wfs.values())
     has_locked_mode = grep(all_wf, r"--locked-mode")
-    has_vuln_check = grep(all_wf, r"--vulnerable")
+    # `dotnet list package --vulnerable` only REPORTS: it exits 0 whether or
+    # not it finds anything, so on its own it is not a build gate.
+    has_vuln_report = grep(all_wf, r"--vulnerable")
+
+    # The gate is NuGetAudit with its warnings promoted to errors, which makes
+    # `dotnet restore` fail. NU1903 = high, NU1904 = critical.
+    msbuild_files = files_to_check + ([cpm_file] if cpm_file.exists() else [])
+    msbuild = "\n".join(read(f) for f in msbuild_files)
+    as_errors = " ".join(re.findall(r"<WarningsAsErrors>([^<]*)</WarningsAsErrors>", msbuild, re.IGNORECASE))
+    treat_all = grep(msbuild, r"<TreatWarningsAsErrors>\s*true\s*</TreatWarningsAsErrors>", re.IGNORECASE)
+    audit_disabled = grep(msbuild, r"<NuGetAudit>\s*false\s*</NuGetAudit>", re.IGNORECASE)
+    audit_mode = find_value(msbuild, r"(?i)<NuGetAuditMode>\s*([A-Za-z]+)\s*</NuGetAuditMode>")
+    has_gate = not audit_disabled and (treat_all or ("NU1903" in as_errors and "NU1904" in as_errors))
     findings["ci"] = {
         "locked_mode": has_locked_mode,
-        "vulnerability_check": has_vuln_check,
-        "status": status(has_locked_mode and has_vuln_check),
+        "vulnerability_report": has_vuln_report,
+        "vulnerability_gate": bool(has_gate),
+        "nuget_audit_mode": audit_mode.lower() if audit_mode else None,
+        "status": status(has_locked_mode and has_gate),
     }
 
     return findings
@@ -1073,7 +1158,7 @@ NATIVE_COOLDOWN_ECOSYSTEMS = ("nodejs", "python", "rust")
 _RESOLVER_HINT = {
     "python": "exclude-newer in [tool.uv]",
     "nodejs": "the package manager's minimum-release-age setting",
-    "rust": "cargo-cooldown in .cargo/config.toml",
+    "rust": "global-min-publish-age in .cargo/config.toml or cooldown.toml",
 }
 
 _CONFLICT_NOTE = (
@@ -1089,7 +1174,7 @@ def assess_cooldown(report, detected_ecosystems, strategy="auto"):
     """Cross-cutting cooldown verdict.
 
     The minimum-release-age control can be satisfied at the resolver level (uv
-    exclude-newer, npm/pnpm/bun/yarn age gates, cargo-cooldown) or at the PR
+    exclude-newer, npm/pnpm/bun/yarn age gates, Cargo min-publish-age) or at the PR
     level (Dependabot cooldown). They are mutually substitutable; configuring
     both is counter-productive because resolver-level gates have no
     security-update exception. `strategy` controls how that choice is graded.

@@ -98,11 +98,19 @@ can shadow a private registry package of the same name (dependency confusion).
 
 **`global.json`** should pin the .NET SDK version with `"rollForward": "disable"`.
 
-**Vulnerability scanning** must run in CI:
+**Vulnerability gating** must be enforced through NuGetAudit in `Directory.Build.props`, so
+that `dotnet restore` fails on a known-vulnerable package:
 
-```bash
-dotnet list package --vulnerable --include-transitive
+```xml
+<PropertyGroup>
+  <NuGetAudit>true</NuGetAudit>
+  <NuGetAuditMode>all</NuGetAuditMode>
+  <WarningsAsErrors>$(WarningsAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsAsErrors>
+</PropertyGroup>
 ```
+
+`dotnet list package --vulnerable` is a report only. It exits `0` even when it finds
+vulnerable packages, so never treat it as the gate.
 
 ## CI Commands
 
@@ -116,7 +124,7 @@ dotnet build --no-restore --configuration Release
 # Test
 dotnet test --no-restore --configuration Release
 
-# Check for known vulnerabilities
+# Report known vulnerabilities (informational — the gate is NuGetAudit during restore)
 dotnet list package --vulnerable --include-transitive
 ```
 

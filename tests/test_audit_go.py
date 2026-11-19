@@ -5,6 +5,7 @@
 """Unit tests for audit_go()."""
 
 import audit
+import pytest
 from conftest import make_workflow
 
 
@@ -84,6 +85,45 @@ def test_gonosumdb_scoped_passes(tmp_path):
     (tmp_path / "go.mod").write_text(MINIMAL_GOMOD)
     (tmp_path / "go.sum").write_text("")
     make_workflow(tmp_path, "ci.yml", "env:\n  GONOSUMDB: 'github.com/mycompany/*'\n")
+    result = audit.audit_go(str(tmp_path))
+    assert result["sum_database"]["status"] == "pass"
+
+
+@pytest.mark.parametrize(
+    "env_line,flag",
+    [
+        ("GOSUMDB: off", "gosumdb_off"),
+        ('GOSUMDB: "off"', "gosumdb_off"),
+        ("run: GOSUMDB=off go build ./...", "gosumdb_off"),
+        ("GOPRIVATE: '*'", "goprivate_wildcard"),
+        ("run: GOPRIVATE=* go build ./...", "goprivate_wildcard"),
+        ("GONOSUMDB: github.com/x/*,*", "gonosumdb_wildcard"),
+    ],
+)
+def test_sum_database_disabled_everywhere_flagged(tmp_path, env_line, flag):
+    """GOSUMDB=off and GOPRIVATE=* disable verification as completely as GONOSUMDB=*."""
+    (tmp_path / "go.mod").write_text(MINIMAL_GOMOD)
+    (tmp_path / "go.sum").write_text("")
+    make_workflow(tmp_path, "ci.yml", f"env:\n  {env_line}\n")
+    result = audit.audit_go(str(tmp_path))
+    assert result["sum_database"]["status"] == "fail"
+    assert result["sum_database"][flag] is True
+
+
+@pytest.mark.parametrize(
+    "env_line",
+    [
+        "GONOSUMDB: '*.corp.example.com'",
+        "GOPRIVATE: '*.corp.example.com,github.com/myorg/*'",
+        "GOSUMDB: sum.golang.org",
+        "GOSUMDB: offsite.example.com",
+    ],
+)
+def test_sum_database_scoped_settings_pass(tmp_path, env_line):
+    """A leading-wildcard host pattern is scoped, not a global bypass."""
+    (tmp_path / "go.mod").write_text(MINIMAL_GOMOD)
+    (tmp_path / "go.sum").write_text("")
+    make_workflow(tmp_path, "ci.yml", f"env:\n  {env_line}\n")
     result = audit.audit_go(str(tmp_path))
     assert result["sum_database"]["status"] == "pass"
 

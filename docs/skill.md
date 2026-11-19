@@ -61,8 +61,8 @@ The skill audits all of the following, where applicable to the detected stack:
 |------|--------|
 | Lockfiles | Present and committed, not gitignored |
 | Version pinning | Exact versions, no `^` / `~` / `>=` / `~>` ranges |
-| Minimum release age | Native client config (npm, pnpm, yarn, bun, uv) |
-| Build script control | pnpm `onlyBuiltDependencies`, Bun `lifecycleScripts` |
+| Minimum release age | Native client config (npm, pnpm, yarn, bun, uv, cargo) |
+| Build script control | pnpm `allowBuilds`, Bun `ignoreScripts` / `trustedDependencies` |
 | CI install commands | Frozen/locked install flags enforced |
 | Terraform lockfile | `.terraform.lock.hcl` committed, multi-platform hashes, `-lockfile=readonly` in CI |
 | Dependabot | Cooldown blocks present for each ecosystem (Terraform cooldown bug flagged) |

@@ -57,14 +57,16 @@ go get github.com/gin-gonic/gin@master
 
 **Run `go mod tidy` after any dependency change** and commit the result. A dirty `go.mod` or `go.sum` is a CI failure.
 
-**Never disable the checksum database** (`GONOSUMDB`, `GONOSUMCHECK`) for public modules. Only set `GOPRIVATE` / `GONOSUMDB` for modules hosted on internal infrastructure:
+**Never disable the checksum database** (`GOSUMDB=off`, `GONOSUMDB='*'`, `GOPRIVATE='*'`) for public modules. Only set `GOPRIVATE` / `GONOSUMDB` for modules hosted on internal infrastructure:
 
 ```bash
 # correct — scoped to internal modules only
 GOPRIVATE="github.com/myorg/*"
 
-# incorrect — disabling sum checks for public modules
+# incorrect — each of these disables sum checks for every module
 GONOSUMDB="*"
+GOPRIVATE="*"
+GOSUMDB=off
 ```
 
 ## CI Verification
@@ -190,7 +192,7 @@ The following changes must not be made autonomously and require explicit human a
 
 - Adding a new module not previously present in `go.mod`
 - Upgrading a major version (v1 → v2, etc.)
-- Setting `GONOSUMDB` or `GONOSUMCHECK` for any public module
+- Setting `GOSUMDB=off`, or a `GONOSUMDB` / `GOPRIVATE` pattern that matches any public module
 - Modifying `.github/dependabot.yml` cooldown values downward
 - Removing or modifying Harden-Runner from a workflow
 - Vendoring or un-vendoring dependencies

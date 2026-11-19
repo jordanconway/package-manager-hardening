@@ -249,7 +249,30 @@ def test_nuget_config_without_mapping_fails(tmp_path):
 # CI patterns
 # ---------------------------------------------------------------------------
 
-def test_ci_locked_mode_and_vuln_check_passes(tmp_path):
+AUDIT_GATE_PROPS = """<Project>
+  <PropertyGroup>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <WarningsAsErrors>$(WarningsAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsAsErrors>
+  </PropertyGroup>
+</Project>
+"""
+
+
+def test_ci_locked_mode_and_audit_gate_passes(tmp_path):
+    make_csproj(tmp_path)
+    write_file(tmp_path, "Directory.Build.props", AUDIT_GATE_PROPS)
+    make_workflow(tmp_path, "ci.yml", """steps:
+  - run: dotnet restore --locked-mode
+""")
+    result = audit.audit_dotnet(str(tmp_path))
+    assert result["ci"]["locked_mode"] is True
+    assert result["ci"]["vulnerability_gate"] is True
+    assert result["ci"]["nuget_audit_mode"] == "all"
+    assert result["ci"]["status"] == "pass"
+
+
+def test_ci_vulnerable_listing_alone_is_not_a_gate(tmp_path):
+    """`dotnet list package --vulnerable` exits 0 on findings, so it cannot gate CI."""
     make_csproj(tmp_path)
     make_workflow(tmp_path, "ci.yml", """steps:
   - run: dotnet restore --locked-mode
@@ -257,8 +280,22 @@ def test_ci_locked_mode_and_vuln_check_passes(tmp_path):
 """)
     result = audit.audit_dotnet(str(tmp_path))
     assert result["ci"]["locked_mode"] is True
-    assert result["ci"]["vulnerability_check"] is True
-    assert result["ci"]["status"] == "pass"
+    assert result["ci"]["vulnerability_report"] is True
+    assert result["ci"]["vulnerability_gate"] is False
+    assert result["ci"]["status"] == "fail"
+
+
+def test_ci_audit_gate_ignored_when_nuget_audit_disabled(tmp_path):
+    make_csproj(tmp_path)
+    write_file(
+        tmp_path,
+        "Directory.Build.props",
+        AUDIT_GATE_PROPS.replace("<NuGetAuditMode>", "<NuGetAudit>false</NuGetAudit>\n    <NuGetAuditMode>"),
+    )
+    make_workflow(tmp_path, "ci.yml", "steps:\n  - run: dotnet restore --locked-mode\n")
+    result = audit.audit_dotnet(str(tmp_path))
+    assert result["ci"]["vulnerability_gate"] is False
+    assert result["ci"]["status"] == "fail"
 
 
 def test_ci_missing_locked_mode_fails(tmp_path):
@@ -279,7 +316,7 @@ def test_ci_missing_vuln_check_fails(tmp_path):
   - run: dotnet build
 """)
     result = audit.audit_dotnet(str(tmp_path))
-    assert result["ci"]["vulnerability_check"] is False
+    assert result["ci"]["vulnerability_gate"] is False
     assert result["ci"]["status"] == "fail"
 
 
@@ -287,5 +324,5 @@ def test_ci_no_workflows(tmp_path):
     make_csproj(tmp_path)
     result = audit.audit_dotnet(str(tmp_path))
     assert result["ci"]["locked_mode"] is False
-    assert result["ci"]["vulnerability_check"] is False
+    assert result["ci"]["vulnerability_gate"] is False
     assert result["ci"]["status"] == "fail"

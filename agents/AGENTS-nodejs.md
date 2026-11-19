@@ -73,7 +73,7 @@ When modifying dependency configuration, verify the following are in place:
 
 ```ini
 save-exact=true
-minimum-release-age=10080
+min-release-age=7
 audit=true
 fund=false
 ```
@@ -81,17 +81,18 @@ fund=false
 **For pnpm** (`pnpm-workspace.yaml`):
 
 ```yaml
-minimumReleaseAge: "7 days"
+minimumReleaseAge: 10080   # minutes (7 days) — must be a bare number
 trustPolicy: no-downgrade
-onlyBuiltDependencies:
-  # list only packages that legitimately need build scripts
+allowBuilds:
+  # list only packages that legitimately need build scripts, e.g.
+  # esbuild: true
 ```
 
 **For Yarn Berry** (`.yarnrc.yml`):
 
 ```yaml
 defaultSemverRangePrefix: ""
-npmMinimalAgeGate: 604800
+npmMinimalAgeGate: 10080   # minutes (7 days)
 ```
 
 **For Bun** (`bunfig.toml`):
@@ -99,9 +100,11 @@ npmMinimalAgeGate: 604800
 ```toml
 [install]
 exact = true
-minimumReleaseAge = "7d"
-lifecycleScripts = false
+minimumReleaseAge = 604800   # seconds (7 days)
+ignoreScripts = true         # or allowlist via "trustedDependencies" in package.json
 ```
+
+Units differ per tool and a wrong one fails silently: npm `min-release-age` is **days**, pnpm and Yarn are **minutes**, Bun is **seconds**. Do not use `minimum-release-age` with npm, `lifecycleScripts` with Bun, or duration strings with pnpm.
 
 ## Security Audit
 
@@ -181,7 +184,7 @@ The following changes must not be made autonomously and require explicit human a
 
 - Adding a new dependency with no prior version in the lockfile
 - Upgrading a major version (`x.0.0` → `y.0.0`)
-- Disabling or removing `minimum-release-age`, `minimumReleaseAge`, or `npmMinimalAgeGate`
-- Adding a package to `onlyBuiltDependencies` or `trustedDependencies`
+- Disabling or removing `min-release-age`, `minimumReleaseAge`, or `npmMinimalAgeGate`
+- Adding a package to `allowBuilds` or `trustedDependencies`, or turning off `ignoreScripts`
 - Modifying `.github/dependabot.yml` cooldown values downward
 - Removing or modifying Harden-Runner from a workflow

@@ -94,7 +94,7 @@ Each check has a `status` field: `"pass"`, `"warn"`, `"fail"`, or `"missing"`.
 
 - `nodejs.exact_pins.unpinned` — list of `dependencies`/`devDependencies` using `^`, `~`, or ranges. Any entry here is a real finding.
 - `nodejs.minimum_release_age` / `python.uv_config.exclude_newer` / `rust.cooldown` — resolver-level cooldown *facts* (no standalone status). The cooldown verdict is the cross-cutting `cooldown` section below; `python.uv_config.status` now reflects hash verification (integrity) only.
-- `cooldown.status` / `cooldown.ecosystems.<eco>` — the release-age cooldown verdict. It is satisfied by **either** a resolver-level cooldown (uv `exclude-newer`, npm/pnpm/bun/yarn age gates, `cargo-cooldown`) **or** a Dependabot cooldown — not both. `warn` means both are configured: the resolver-level one has no security-update exception and blocks Dependabot's automated security updates (see the finding's `note`). `fail` means neither is configured. Recommend Dependabot (security fixes keep flowing). Driven by the `--cooldown-strategy` flag (`auto` default / `dependabot` / `resolver`).
+- `cooldown.status` / `cooldown.ecosystems.<eco>` — the release-age cooldown verdict. It is satisfied by **either** a resolver-level cooldown (uv `exclude-newer`, npm/pnpm/bun/yarn age gates, Cargo `global-min-publish-age`) **or** a Dependabot cooldown — not both. `warn` means both are configured: the resolver-level one has no security-update exception and blocks Dependabot's automated security updates (see the finding's `note`). `fail` means neither is configured. Recommend Dependabot (security fixes keep flowing). Driven by the `--cooldown-strategy` flag (`auto` default / `dependabot` / `resolver`).
 - `rust.exact_pins.loose` — Cargo entries without `=` prefix. Flag each one.
 - `terraform.exact_pins.loose` — provider version constraints that aren't `= X.Y.Z`. Flag each one and note this requires human approval to change.
 - `dependabot.ecosystems.<eco>.status: warn` — ecosystem is in dependabot.yml but has no `cooldown:` block.
@@ -121,7 +121,7 @@ Each check has a `status` field: `"pass"`, `"warn"`, `"fail"`, or `"missing"`.
 - `dotnet.central_package_management.status: fail` — `Directory.Packages.props` with `ManagePackageVersionsCentrally` is absent. Not strictly required but strongly recommended for multi-project solutions to prevent version drift.
 - `dotnet.source_mapping.status: fail` — `nuget.config` is absent or lacks `<packageSourceMapping>`. Without source mapping, any package name can be served from any configured source, enabling dependency confusion attacks.
 - `dotnet.ci.locked_mode: false` — CI is not running `dotnet restore --locked-mode`. Without it the lockfile is not enforced and the build can silently re-resolve to a different version set.
-- `dotnet.ci.vulnerability_check: false` — `dotnet list package --vulnerable` is not in CI. Add `dotnet list package --vulnerable --include-transitive` as a build-fail gate.
+- `dotnet.ci.vulnerability_gate: false` — no NuGetAudit build gate. Add `<NuGetAuditMode>all</NuGetAuditMode>` and `<WarningsAsErrors>$(WarningsAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsAsErrors>` to `Directory.Build.props` so `dotnet restore` fails on a vulnerable package. `dotnet.ci.vulnerability_report` only records whether `dotnet list package --vulnerable` runs; that command exits 0 on findings and is not a gate.
 
 ## Step 3: Report findings
 
@@ -141,9 +141,9 @@ Example report structure:
 
 ### Node.js (pnpm)
 ✅ pnpm-lock.yaml committed
-✅ minimumReleaseAge: "7 days" set
+✅ minimumReleaseAge: 10080 (7 days) set
 ❌ trustPolicy not set — a compromised version that drops provenance won't be blocked
-⚠️ onlyBuiltDependencies not configured — all installed packages can run postinstall scripts
+⚠️ allowBuilds not configured — build scripts are unreviewed (pnpm 11+ fails the install)
 
 ### Python (uv)
 ✅ uv.lock committed (hash verification is automatic with `uv sync --frozen`)
@@ -218,12 +218,12 @@ If the user later says *"apply everything including badges"*, *"set up Scorecard
 
 If the user agrees (fully or partially), apply the fixes in this order — lower risk / non-breaking changes first:
 
-1. `pnpm-workspace.yaml` / `.npmrc` / `.yarnrc.yml` / `bunfig.toml` — add trust policy / build-script config. **Cooldown is a choice, not an add-on:** only add a resolver-level cooldown (`minimumReleaseAge` / `minimum-release-age` / `npmMinimalAgeGate`) if there is *no* Dependabot cooldown for the ecosystem. If Dependabot cooldown is present, do **not** add a resolver-level one — it would block Dependabot security autoupdates (see the `cooldown` interpretation note).
+1. `pnpm-workspace.yaml` / `.npmrc` / `.yarnrc.yml` / `bunfig.toml` — add trust policy / build-script config. **Cooldown is a choice, not an add-on:** only add a resolver-level cooldown (`minimumReleaseAge` / `min-release-age` / `npmMinimalAgeGate`) if there is *no* Dependabot cooldown for the ecosystem. If Dependabot cooldown is present, do **not** add a resolver-level one — it would block Dependabot security autoupdates (see the `cooldown` interpretation note).
 2. `pyproject.toml` — add `[tool.uv.pip] require-hashes = true / verify-hashes = true` (hash verification; automatic for `uv sync --frozen`, these flags only protect ad-hoc `uv pip install`). Add `[tool.uv] exclude-newer` **only** if the repo is not relying on a Dependabot `uv`/`pip` cooldown — prefer the Dependabot cooldown so security fixes are not blocked.
-3. `.cargo/config.toml` — add a `[cooldown]` block **only** if there is no Dependabot `cargo` cooldown (same resolver-vs-Dependabot trade-off).
+3. `.cargo/config.toml` — add `[registry] global-min-publish-age` (Cargo ≥ 1.100; never a `[cooldown]` table) **only** if there is no Dependabot `cargo` cooldown (same resolver-vs-Dependabot trade-off).
 4. `composer.json` — add `roave/security-advisories` dev dependency; tighten `^`/`~` pins to exact (flag for human review)
 5. Ruby CI — add `BUNDLE_FROZEN=true` and `bundle audit check` to CI workflow
-5a. .NET — add `<RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>` to `Directory.Build.props`; run `dotnet restore` locally and commit `packages.lock.json`; add `--locked-mode` and `dotnet list package --vulnerable --include-transitive` to CI; add `<packageSourceMapping>` to `nuget.config`
+5a. .NET — add `<RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>` to `Directory.Build.props`; run `dotnet restore` locally and commit `packages.lock.json`; add `--locked-mode` to CI; add the NuGetAudit gate (`NuGetAuditMode=all` + `WarningsAsErrors` NU1901–NU1904) to `Directory.Build.props` — `dotnet list package --vulnerable` is a report only and never fails a build; add `<packageSourceMapping>` to `nuget.config`
 6. Terraform `*.tf` — tighten `~>` / `>=` constraints to `=` exact pins (**do not apply autonomously** — present proposed changes and require explicit human approval; changing constraints can cause `terraform init` to fail)
 7. Maven `pom.xml` — add `maven-enforcer-plugin` with `banDynamicVersions` / `requirePluginVersions` / `requireReleaseDeps` / `dependencyConvergence`; set `<checksumPolicy>fail</checksumPolicy>` (**do not autonomously change `<version>` pins** — flag for human review, since tightening a transitive can break downstream consumers)
 8. Gradle `build.gradle(.kts)` / `settings.gradle(.kts)` — add `dependencyLocking { lockAllConfigurations(); lockMode.set(LockMode.STRICT) }`, `failOnNonReproducibleResolution()`, and `RepositoriesMode.FAIL_ON_PROJECT_REPOS`; remove `mavenLocal()` and `jcenter()` (**flag — repository changes can break local development**). Generating `gradle.lockfile` and `gradle/verification-metadata.xml` requires running `./gradlew --write-locks` and `./gradlew --write-verification-metadata sha256,pgp help` locally — do not run these in CI, and do not run them autonomously; instruct the user to run them and commit the result.
@@ -237,15 +237,17 @@ For each file you modify, show a clear before/after diff and explain what change
 **pnpm-workspace.yaml additions:**
 
 ```yaml
-minimumReleaseAge: "7 days"
+minimumReleaseAge: 10080   # minutes (7 days) — a bare number, never "7 days"
 trustPolicy: no-downgrade
+allowBuilds:               # pnpm >= 10.26; replaces onlyBuiltDependencies
+  esbuild: true
 ```
 
 **npm .npmrc additions:**
 
 ```ini
 save-exact=true
-minimum-release-age=10080
+min-release-age=7   # days — not `minimum-release-age`
 audit=true
 fund=false
 ```
@@ -254,7 +256,7 @@ fund=false
 
 ```yaml
 defaultSemverRangePrefix: ""
-npmMinimalAgeGate: 604800
+npmMinimalAgeGate: 10080   # minutes (7 days)
 ```
 
 **Bun bunfig.toml additions:**
@@ -262,9 +264,11 @@ npmMinimalAgeGate: 604800
 ```toml
 [install]
 exact = true
-minimumReleaseAge = "7d"
-lifecycleScripts = false
+minimumReleaseAge = 604800   # seconds (7 days); strings need Bun >= 1.4.4
+ignoreScripts = true         # `lifecycleScripts` is not a Bun setting
 ```
+
+To allow specific packages to run scripts instead of disabling all of them, omit `ignoreScripts` and set `"trustedDependencies": ["esbuild"]` in `package.json` (it replaces Bun's default-trusted list; a bunfig `[install.trustedDependencies]` table is ignored).
 
 **uv pyproject.toml additions:**
 
@@ -297,8 +301,10 @@ Then install in CI with `uv sync --frozen --group dev` and run via `uv run <tool
 **Cargo .cargo/config.toml additions:**
 
 ```toml
-[cooldown]
-days = 7
+# Cargo >= 1.100. For older Cargo, put the same table in cooldown.toml
+# and use the cargo-cooldown plugin (>= 0.3.1).
+[registry]
+global-min-publish-age = "7 days"
 ```
 
 **Dependabot cooldown block (per ecosystem):**
@@ -371,7 +377,19 @@ bundle exec bundle-audit check --update
 dotnet restore --locked-mode
 dotnet build --no-restore --configuration Release
 dotnet test --no-restore --configuration Release
-dotnet list package --vulnerable --include-transitive
+dotnet list package --vulnerable --include-transitive   # report only; exits 0 on findings
+```
+
+**.NET Directory.Build.props (vulnerability gate — fails `dotnet restore`):**
+
+```xml
+<Project>
+  <PropertyGroup>
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <WarningsAsErrors>$(WarningsAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsAsErrors>
+  </PropertyGroup>
+</Project>
 ```
 
 **.NET Directory.Build.props (lockfile opt-in):**
@@ -653,7 +671,7 @@ Append the ecosystem-specific endpoints:
 - **Never downgrade security.** If a stricter setting is already in place (e.g., a longer cooldown than the recommended 7 days), leave it as-is and note it as ✅.
 - **Don't touch version numbers in package manifests** unless the user explicitly asks. Pinning existing unpinned ranges is a breaking change that deserves separate review.
 - **Harden-Runner egress-policy**: always start new additions in `audit` mode, not `block`. Switching to `block` requires the user to first review the audit logs and build a confirmed allowlist.
-- **Flag items requiring human judgment** rather than silently skipping them — for example, if `onlyBuiltDependencies` is missing, list the packages that currently run build scripts and ask the user to confirm which should be allowed before writing the config.
+- **Flag items requiring human judgment** rather than silently skipping them — for example, if `allowBuilds` is missing, list the packages that currently run build scripts and ask the user to confirm which should be allowed before writing the config.
 - **Never guess package names.** When any fix involves adding a dependency (e.g. `roave/security-advisories`, `bundler-audit`, an SCA plugin), verify the exact name against the registry in the current session before writing it — typosquatting and slopsquatting (names language models tend to invent) are actively exploited. The per-ecosystem AGENTS files each carry a mandatory "Never Guess" identity-verification section; apply the same rule during skill-driven fixes.
 - **`go install` pinning**: never use `@latest`, `@master`, or `@main` in any `go install` invocation — in Makefiles, scripts, or CI workflows. Always use an explicit `@vX.Y.Z`. The go sum database provides hash verification but the version itself is still mutable without an explicit pin.
 - **Go stdlib CVEs**: standard library vulnerabilities cannot be fixed by bumping a `require` entry — they require upgrading the `go` directive in `go.mod` to the patched Go release. When govulncheck reports stdlib findings, check the "Fixed in" version and update the `go` directive accordingly.
@@ -723,11 +741,11 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
 - Is `package-lock.json` / `pnpm-lock.yaml` / `yarn.lock` / `bun.lock` present and not gitignored?
 - npm/yarn: does CI run `lockfile-lint` (pinned version) validating `--allowed-hosts`, `--validate-https`, and `--validate-integrity`? Lockfile `resolved`-URL tampering passes hash verification and `npm ci` — a lint check is the dedicated control.
 - Do `dependencies` and `devDependencies` use exact versions (no `^` or `~`)?
-- npm ≥ 11.10: is `minimum-release-age` set in `.npmrc`?
-- pnpm ≥ 10.16: is `minimumReleaseAge` set in `pnpm-workspace.yaml`? Is `trustPolicy: no-downgrade` set?
-- Yarn Berry ≥ 4.10: is `npmMinimalAgeGate` set in `.yarnrc.yml`?
-- Bun ≥ 1.3: is `minimumReleaseAge` set in `bunfig.toml`?
-- pnpm: is `onlyBuiltDependencies` (allowlist) or `ignoredBuiltDependencies` configured?
+- npm ≥ 11.10: is `min-release-age` (a number of **days**) set in `.npmrc`? `minimum-release-age` is not an npm key and applies no gate.
+- pnpm ≥ 10.16: is `minimumReleaseAge` set in `pnpm-workspace.yaml` as a bare number of **minutes** (not a string like `"7 days"`)? Is `trustPolicy: no-downgrade` set?
+- Yarn Berry ≥ 4.10: is `npmMinimalAgeGate` set in `.yarnrc.yml`? A bare number is **minutes** (`10080`), not seconds.
+- Bun ≥ 1.3: is `minimumReleaseAge` set in `bunfig.toml` as a number of **seconds** (`604800`)? Is `ignoreScripts = true` set, or `trustedDependencies` declared in `package.json`?
+- pnpm: is `allowBuilds` configured? (`onlyBuiltDependencies` / `ignoredBuiltDependencies` were removed in pnpm 11.)
 - Does CI use `npm ci` / `pnpm install --frozen-lockfile` / `yarn install --immutable` / `bun install --frozen-lockfile`?
 - npm: does CI run `npm audit signatures` after install? It verifies registry signatures and provenance attestations for the full tree — catching tampered artifacts that lockfile hash verification cannot (the lockfile hash is recorded *from* the artifact, so a substituted artifact carries a matching hash).
 
@@ -742,7 +760,7 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
 
 - Are `go.mod` and `go.sum` both present and not gitignored?
 - Are all `require` entries using explicit tagged versions (not `@latest`, `@master`, `@main`)?
-- Is `GONOSUMDB` scoped only to private modules (not `*`)?
+- Are `GONOSUMDB` and `GOPRIVATE` scoped only to private modules (not `*`), and is `GOSUMDB` left at its default (never `off`)?
 - Does CI run `go mod verify` and `govulncheck ./...`?
 - Does CI run `go mod verify` **before** `go build`? A tampered or stale module graph must be caught before the compiler touches any dependency.
 - Does the `go mod tidy` diff check use `git diff --exit-code -- go.mod go.sum` (with the `--` pathspec separator)? Does it also run before `go build`?
@@ -755,7 +773,7 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
 
 - Is `Cargo.lock` present and not gitignored?
 - Do `Cargo.toml` dependencies use `=` exact version syntax?
-- Is `cargo-cooldown` configured in `.cargo/config.toml` with `[cooldown] days = 7`?
+- Is `[registry] global-min-publish-age` set in `.cargo/config.toml` (Cargo ≥ 1.100), or in `cooldown.toml` for the `cargo-cooldown` plugin? A `[cooldown] days = N` table is read by nothing.
 - Does CI use `--locked` on `cargo build`/`cargo test` and run `cargo audit --deny warnings`?
 
 ### PHP / Composer
@@ -774,7 +792,7 @@ Use this section only if `audit.py` cannot be run. It replicates what the script
 - Are version constraints free of floating (`*`, `*-*`) and range syntax (`[1.0,)`, `[1.0, 2.0)`)? Bare versions like `13.0.3` are acceptable when paired with a lockfile; `[13.0.3]` bracket notation is the strictly exact form.
 - Is `Directory.Packages.props` with `ManagePackageVersionsCentrally` present for multi-project solutions?
 - Is `nuget.config` present with `<packageSourceMapping>` configured? (Prevents dependency confusion attacks.)
-- Does CI run `dotnet list package --vulnerable --include-transitive`?
+- Is NuGetAudit a build gate — `WarningsAsErrors` including NU1901–NU1904 and `NuGetAuditMode` set to `all`? (`dotnet list package --vulnerable` always exits 0 on findings and is not a gate.)
 - Is `global.json` present with the .NET SDK version pinned (`"rollForward": "disable"`)?
 
 ### Ruby / Bundler

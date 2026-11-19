@@ -66,12 +66,39 @@ def test_caret_pin_detected(tmp_path):
 # Cooldown config
 # ---------------------------------------------------------------------------
 
-def test_cooldown_configured(tmp_path):
+def test_cooldown_native_cargo_configured(tmp_path):
+    """Cargo >= 1.100 reads [registry] global-min-publish-age natively."""
+    (tmp_path / "Cargo.toml").write_text(MINIMAL_CARGO_TOML)
+    write_file(tmp_path, ".cargo/config.toml", '[registry]\nglobal-min-publish-age = "7 days"\n')
+    result = audit.audit_rust(str(tmp_path))
+    assert result["cooldown"]["configured"] is True
+    assert result["cooldown"]["global_min_publish_age"] == "7 days"
+    assert result["cooldown"]["source"] == ".cargo/config.toml"
+
+
+def test_cooldown_cargo_cooldown_plugin_configured(tmp_path):
+    """cargo-cooldown >= 0.3.1 reads the same key from cooldown.toml."""
+    (tmp_path / "Cargo.toml").write_text(MINIMAL_CARGO_TOML)
+    write_file(tmp_path, "cooldown.toml", '[registry]\nglobal-min-publish-age = "7 days"\n')
+    result = audit.audit_rust(str(tmp_path))
+    assert result["cooldown"]["configured"] is True
+    assert result["cooldown"]["source"] == "cooldown.toml"
+
+
+def test_cooldown_zero_is_not_configured(tmp_path):
+    (tmp_path / "Cargo.toml").write_text(MINIMAL_CARGO_TOML)
+    write_file(tmp_path, ".cargo/config.toml", '[registry]\nglobal-min-publish-age = "0"\n')
+    result = audit.audit_rust(str(tmp_path))
+    assert result["cooldown"]["configured"] is False
+
+
+def test_cooldown_legacy_table_is_not_configured(tmp_path):
+    """`[cooldown] days = 7` in .cargo/config.toml is read by nothing."""
     (tmp_path / "Cargo.toml").write_text(MINIMAL_CARGO_TOML)
     write_file(tmp_path, ".cargo/config.toml", "[cooldown]\ndays = 7\n")
     result = audit.audit_rust(str(tmp_path))
-    assert result["cooldown"]["configured"] is True
-    assert result["cooldown"]["days"] == "7"
+    assert result["cooldown"]["configured"] is False
+    assert "global-min-publish-age" in result["cooldown"]["unsupported_table"]
 
 
 def test_cooldown_missing(tmp_path):

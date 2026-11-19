@@ -67,7 +67,7 @@ def test_invalid_path_exits_nonzero():
 def test_nodejs_repo_detected(tmp_path):
     (tmp_path / "package.json").write_text('{"dependencies": {"lodash": "4.17.21"}}')
     (tmp_path / "package-lock.json").write_text("{}")
-    (tmp_path / ".npmrc").write_text("minimum-release-age=10080\n")
+    (tmp_path / ".npmrc").write_text("min-release-age=7\n")
     _, report = run_audit(tmp_path)
     assert "nodejs" in report["ecosystems_detected"]
     assert "nodejs" in report

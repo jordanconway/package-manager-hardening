@@ -25,7 +25,7 @@ The core practices covered here are:
 
 **Dependency auditing** — scanning for known vulnerabilities on every CI run using ecosystem-native tools (`npm audit`, `cargo audit`, `govulncheck`, `pip-audit`) so that newly disclosed CVEs trigger action before they reach production.
 
-**Build script control** — restricting which packages are permitted to run postinstall scripts (`onlyBuiltDependencies` in pnpm, `lifecycleScripts` in Bun). Postinstall scripts are one of the most common mechanisms used by malicious packages to execute code at install time.
+**Build script control** — restricting which packages are permitted to run postinstall scripts (`allowBuilds` in pnpm, `ignoreScripts` / `trustedDependencies` in Bun). Postinstall scripts are one of the most common mechanisms used by malicious packages to execute code at install time.
 
 **Automated updates with cooldown** — using Dependabot with per-semver-level delay windows (e.g. 30 days for major, 7 for minor, 3 for patch) so that dependency updates are proposed automatically but not merged until after the cooldown has elapsed. Security advisories bypass the cooldown automatically.
 
@@ -83,10 +83,10 @@ Start with `warn-only: "true"`, fix the reported findings, then drop it to make 
 | [Node.js](docs/nodejs.md) | npm, pnpm, Yarn, Bun — lockfiles, version pinning, minimum release age, build script control, CI config |
 | [Python](docs/python.md) | pip / pip-tools, uv — lockfiles, hash verification, `exclude-newer`, frozen installs |
 | [Go](docs/go.md) | Go modules — `go.sum`, MVS pinning, `GOPRIVATE`, `govulncheck`, CI step ordering, `go` directive patch versioning, `go install` pinning, `GOTOOLCHAIN=local` |
-| [Rust](docs/rust.md) | Cargo — exact version pinning, `cargo-cooldown`, `cargo audit`, lockfile enforcement |
+| [Rust](docs/rust.md) | Cargo — exact version pinning, `global-min-publish-age`, `cargo audit`, lockfile enforcement |
 | [PHP](docs/php.md) | Composer — lockfile enforcement, exact pinning, `composer audit`, `roave/security-advisories`, build script control |
 | [Ruby](docs/ruby.md) | Bundler — `Gemfile.lock`, exact pinning, `BUNDLE_FROZEN`, `bundler-audit`, Dependabot cooldown |
-| [.NET](docs/dotnet.md) | NuGet — `packages.lock.json`, `--locked-mode`, Central Package Management, Package Source Mapping, `dotnet list package --vulnerable` |
+| [.NET](docs/dotnet.md) | NuGet — `packages.lock.json`, `--locked-mode`, Central Package Management, Package Source Mapping, NuGetAudit as a build gate |
 | [Terraform / OpenTofu](docs/terraform.md) | Provider pinning, `.terraform.lock.hcl`, multi-platform hashes, `-lockfile=readonly`, OpenTofu differences |
 | [Helm](docs/helm.md) | `Chart.yaml` exact pinning, `Chart.lock`, `helm dependency build`, OCI digest pinning, `--verify` / cosign, Renovate cooldowns, Helmfile |
 | [JVM (Java/Kotlin)](docs/jvm.md) | Maven, Gradle — exact pinning, `<dependencyManagement>`, maven-enforcer, `gradle.lockfile`, dependency verification (`verification-metadata.xml`), Gradle Wrapper SHA pinning, repository control |
@@ -116,13 +116,13 @@ Start with `warn-only: "true"`, fix the reported findings, then drop it to make 
 
 | Package Manager        | Native Support | Since        | Config Key                  | Relative Duration |
 |------------------------|---------------|--------------|------------------------------|-------------------|
-| [pnpm](docs/nodejs.md#pnpm) | ✅ Yes | v10.16 (Sep 2025) | `minimumReleaseAge` | ✅ Yes |
-| [Yarn Classic](docs/nodejs.md#yarn-classic) / [Berry](docs/nodejs.md#yarn-berry) | ✅ Yes | v4.10 (Sep 2025) | `npmMinimalAgeGate` | ✅ Yes (seconds) |
-| [Bun](docs/nodejs.md#bun) | ✅ Yes | v1.3 (Oct 2025) | `minimumReleaseAge` | ✅ Yes |
-| [npm](docs/nodejs.md#npm) | ✅ Yes | v11.10 (Feb 2026) | `minimum-release-age` | ✅ Yes (minutes) |
+| [pnpm](docs/nodejs.md#pnpm) | ✅ Yes | v10.16 (Sep 2025) | `minimumReleaseAge` | ✅ Yes (minutes) |
+| [Yarn Berry](docs/nodejs.md#yarn-berry) (not Classic) | ✅ Yes | v4.10 (Sep 2025) | `npmMinimalAgeGate` | ✅ Yes (minutes; `"7d"` from v4.11) |
+| [Bun](docs/nodejs.md#bun) | ✅ Yes | v1.3 (Oct 2025) | `minimumReleaseAge` | ✅ Yes (seconds; `"7d"` from v1.4.4) |
+| [npm](docs/nodejs.md#npm) | ✅ Yes | v11.10 (Feb 2026) | `min-release-age` | ✅ Yes (days) |
 | [uv](docs/python.md#uv) | ✅ Yes | v0.9.17 (Dec 2025) | `exclude-newer` | ✅ Yes |
 | [pip](docs/python.md#pip) | ⚠️ Partial | v26.0 (Jan 2026) | `--uploaded-prior-to` | ❌ Absolute only |
-| [Cargo](docs/rust.md#cargo-rust) | ❌ No | — | (use `cargo-cooldown`) | — |
+| [Cargo](docs/rust.md#cargo-rust) | ✅ Yes | v1.100 (Nov 2026) | `registry.global-min-publish-age` | ✅ Yes (`"7 days"`) |
 | [Go modules](docs/go.md#go-modules) | ❌ No | — | (use Dependabot or proxy) | — |
 | [Composer](docs/php.md#composer) | ❌ No | — | (use Dependabot + exact pins) | — |
 | [Helm](docs/helm.md) | ❌ No | — | (use Renovate `minimumReleaseAge`; Dependabot does not support Helm chart deps) | — |
@@ -202,11 +202,13 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contribution guide: how to f
 - [NuGet Lockfile (RestorePackagesWithLockFile)](https://learn.microsoft.com/en-us/nuget/consume-packages/package-references-in-project-files#locking-dependencies)
 - [Central Package Management](https://learn.microsoft.com/en-us/nuget/consume-packages/central-package-management)
 - [dotnet list package --vulnerable](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-list-package)
+- [NuGetAudit (auditing package dependencies)](https://learn.microsoft.com/en-us/nuget/concepts/auditing-packages)
 - [Dependabot Options Reference](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference)
 - [Dependabot Cooldown Announcement](https://github.blog/changelog/2025-07-01-dependabot-supports-configuration-of-a-minimum-package-age/)
 - [Harden-Runner on GitHub](https://github.com/step-security/harden-runner)
 - [Harden-Runner Documentation](https://docs.stepsecurity.io/harden-runner)
 - [Harden-Runner on GitHub Marketplace](https://github.com/marketplace/actions/harden-runner)
+- [Cargo `registry.global-min-publish-age`](https://doc.rust-lang.org/cargo/reference/config.html)
 - [cargo-cooldown](https://crates.io/crates/cargo-cooldown)
 - [Terraform Provider Requirements](https://developer.hashicorp.com/terraform/language/providers/requirements)
 - [Terraform Dependency Lock File](https://developer.hashicorp.com/terraform/language/files/dependency-lock)
