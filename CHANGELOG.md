@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-20
+
+Security release: corrects documented hardening settings that had no effect, and the `audit.py` checks that counted them as configured (advisory GHSA-h4mr-3f69-px4v). Some `audit.py` JSON keys changed, and repositories that passed only because of a dead setting will now fail those checks; see **Security** below.
+
 ### Added
 
 - New [`tests/test_fuzz_harness_contract.py`](tests/test_fuzz_harness_contract.py) guards the `fuzz/` harnesses against the silent drift that left them broken for weeks. It stubs `atheris` so it runs in the ordinary PR suite (atheris ships Linux x86_64 wheels only and is deliberately not a dev dependency), drives each harness's real `TestOneInput` over adversarial inputs to catch signature drift and fixture-setup crashes, and AST-compares the regex corpora in `fuzz_audit_helpers.py` against the patterns `audit.py` actually uses so the two cannot diverge. Verified to catch all three bugs found in the previous entry, plus pattern additions/edits, a renamed audit function, and a `find_value` pattern losing its capturing group. Adds 8 tests, ~0.1s.
@@ -223,7 +227,8 @@ Documented in [`SECURITY.md`](SECURITY.md):
 - `Maintained` Scorecard check is time-based and will resolve once the repository is 90 days old.
 - OpenSSF Best Practices badge: **Passing** tier awarded (project 12822).
 
-[Unreleased]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/jordanconway/package-manager-hardening/compare/v0.3.0...v0.4.0
