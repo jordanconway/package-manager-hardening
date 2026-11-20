@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [0.5.0] - 2026-11-20
 
-Security release: corrects documented hardening settings that had no effect, and the `audit.py` checks that counted them as configured (advisory GHSA-h4mr-3f69-px4v). Some `audit.py` JSON keys changed, and repositories that passed only because of a dead setting will now fail those checks; see **Security** below.
+Security release: corrects documented hardening settings that had no effect, and the `audit.py` checks that counted them as configured ([GHSA-h4mr-3f69-px4v](https://github.com/jordanconway/package-manager-hardening/security/advisories/GHSA-h4mr-3f69-px4v)). Some `audit.py` JSON keys changed, and repositories that passed only because of a dead setting will now fail those checks; see **Security** below.
 
 ### Added
 
@@ -227,7 +227,8 @@ Documented in [`SECURITY.md`](SECURITY.md):
 - `Maintained` Scorecard check is time-based and will resolve once the repository is 90 days old.
 - OpenSSF Best Practices badge: **Passing** tier awarded (project 12822).
 
-[Unreleased]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/jordanconway/package-manager-hardening/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.0...v0.4.1
