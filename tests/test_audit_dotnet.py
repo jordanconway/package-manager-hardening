@@ -5,6 +5,7 @@
 """Unit tests for audit_dotnet()."""
 
 import audit
+import pytest
 from conftest import make_workflow, write_file
 
 
@@ -249,7 +250,97 @@ def test_nuget_config_without_mapping_fails(tmp_path):
 # CI patterns
 # ---------------------------------------------------------------------------
 
-def test_ci_locked_mode_and_vuln_check_passes(tmp_path):
+AUDIT_GATE_PROPS = """<Project>
+  <PropertyGroup>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <WarningsAsErrors>$(WarningsAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsAsErrors>
+  </PropertyGroup>
+</Project>
+"""
+
+
+def test_ci_locked_mode_and_audit_gate_passes(tmp_path):
+    make_csproj(tmp_path)
+    write_file(tmp_path, "Directory.Build.props", AUDIT_GATE_PROPS)
+    make_workflow(tmp_path, "ci.yml", """steps:
+  - run: dotnet restore --locked-mode
+""")
+    result = audit.audit_dotnet(str(tmp_path))
+    assert result["ci"]["locked_mode"] is True
+    assert result["ci"]["vulnerability_gate"] is True
+    assert result["ci"]["nuget_audit_mode"] == "all"
+    assert result["ci"]["status"] == "pass"
+
+
+GATE_WITHOUT_MODE = AUDIT_GATE_PROPS.replace("    <NuGetAuditMode>all</NuGetAuditMode>\n", "")
+LOCKED_RESTORE = "steps:\n  - run: dotnet restore --locked-mode\n"
+
+
+def _csproj_targeting(tmp_path, element):
+    return write_file(
+        tmp_path,
+        "App.csproj",
+        f'<Project Sdk="Microsoft.NET.Sdk">\n  <PropertyGroup>\n    {element}\n  </PropertyGroup>\n</Project>\n',
+    )
+
+
+@pytest.mark.parametrize(
+    "element",
+    [
+        "<TargetFramework>net8.0</TargetFramework>",
+        "<TargetFramework>netstandard2.0</TargetFramework>",
+        "<TargetFramework>net48</TargetFramework>",
+        "<TargetFrameworks>net10.0;net8.0</TargetFrameworks>",
+        "<TargetFramework>$(AppFramework)</TargetFramework>",
+        "<OutputType>Exe</OutputType>",
+    ],
+)
+def test_ci_gate_without_audit_mode_all_fails_below_net10(tmp_path, element):
+    """Below net10.0 NuGetAuditMode defaults to `direct`, so transitives are unaudited."""
+    _csproj_targeting(tmp_path, element)
+    write_file(tmp_path, "Directory.Build.props", GATE_WITHOUT_MODE)
+    make_workflow(tmp_path, "ci.yml", LOCKED_RESTORE)
+    ci = audit.audit_dotnet(str(tmp_path))["ci"]
+    assert ci["vulnerability_gate"] is True
+    assert ci["transitive_audit"] is False
+    assert ci["status"] == "fail"
+    assert "NuGetAuditMode" in ci["note"]
+
+
+@pytest.mark.parametrize(
+    "element",
+    [
+        "<TargetFramework>net10.0</TargetFramework>",
+        "<TargetFramework>net10.0-windows</TargetFramework>",
+        "<TargetFrameworks>net10.0;net11.0</TargetFrameworks>",
+    ],
+)
+def test_ci_gate_without_audit_mode_passes_on_net10_and_later(tmp_path, element):
+    _csproj_targeting(tmp_path, element)
+    write_file(tmp_path, "Directory.Build.props", GATE_WITHOUT_MODE)
+    make_workflow(tmp_path, "ci.yml", LOCKED_RESTORE)
+    ci = audit.audit_dotnet(str(tmp_path))["ci"]
+    assert ci["transitive_audit"] is True
+    assert ci["status"] == "pass"
+    assert "note" not in ci
+
+
+def test_ci_explicit_direct_mode_fails_even_on_net10(tmp_path):
+    _csproj_targeting(tmp_path, "<TargetFramework>net10.0</TargetFramework>")
+    write_file(
+        tmp_path,
+        "Directory.Build.props",
+        AUDIT_GATE_PROPS.replace("<NuGetAuditMode>all<", "<NuGetAuditMode>direct<"),
+    )
+    make_workflow(tmp_path, "ci.yml", LOCKED_RESTORE)
+    ci = audit.audit_dotnet(str(tmp_path))["ci"]
+    assert ci["nuget_audit_mode"] == "direct"
+    assert ci["transitive_audit"] is False
+    assert ci["status"] == "fail"
+
+
+def test_ci_vulnerable_listing_alone_is_not_a_gate(tmp_path):
+    """`dotnet list package --vulnerable` exits 0 on findings, so it cannot gate CI."""
     make_csproj(tmp_path)
     make_workflow(tmp_path, "ci.yml", """steps:
   - run: dotnet restore --locked-mode
@@ -257,8 +348,22 @@ def test_ci_locked_mode_and_vuln_check_passes(tmp_path):
 """)
     result = audit.audit_dotnet(str(tmp_path))
     assert result["ci"]["locked_mode"] is True
-    assert result["ci"]["vulnerability_check"] is True
-    assert result["ci"]["status"] == "pass"
+    assert result["ci"]["vulnerability_report"] is True
+    assert result["ci"]["vulnerability_gate"] is False
+    assert result["ci"]["status"] == "fail"
+
+
+def test_ci_audit_gate_ignored_when_nuget_audit_disabled(tmp_path):
+    make_csproj(tmp_path)
+    write_file(
+        tmp_path,
+        "Directory.Build.props",
+        AUDIT_GATE_PROPS.replace("<NuGetAuditMode>", "<NuGetAudit>false</NuGetAudit>\n    <NuGetAuditMode>"),
+    )
+    make_workflow(tmp_path, "ci.yml", "steps:\n  - run: dotnet restore --locked-mode\n")
+    result = audit.audit_dotnet(str(tmp_path))
+    assert result["ci"]["vulnerability_gate"] is False
+    assert result["ci"]["status"] == "fail"
 
 
 def test_ci_missing_locked_mode_fails(tmp_path):
@@ -279,7 +384,7 @@ def test_ci_missing_vuln_check_fails(tmp_path):
   - run: dotnet build
 """)
     result = audit.audit_dotnet(str(tmp_path))
-    assert result["ci"]["vulnerability_check"] is False
+    assert result["ci"]["vulnerability_gate"] is False
     assert result["ci"]["status"] == "fail"
 
 
@@ -287,5 +392,5 @@ def test_ci_no_workflows(tmp_path):
     make_csproj(tmp_path)
     result = audit.audit_dotnet(str(tmp_path))
     assert result["ci"]["locked_mode"] is False
-    assert result["ci"]["vulnerability_check"] is False
+    assert result["ci"]["vulnerability_gate"] is False
     assert result["ci"]["status"] == "fail"

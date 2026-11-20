@@ -54,13 +54,16 @@ by reading the lockfile.
 | Rust | `cargo audit` | ✅ Reads `Cargo.lock`; full graph |
 | PHP | `composer audit --locked` | ✅ Reads `composer.lock`; full graph |
 | Ruby | `bundler-audit check` | ✅ Reads `Gemfile.lock`; full graph |
-| .NET | `dotnet list package --vulnerable --include-transitive` | ✅ `--include-transitive` is required |
+| .NET | NuGetAudit with `NuGetAuditMode=all` (gate); `dotnet list package --vulnerable --include-transitive` (report) | ✅ `all` mode / `--include-transitive` is required |
 | JVM | OWASP Dependency-Check, CycloneDX | ✅ Full graph including transitive JARs |
 | Terraform | — | ❌ No widely-adopted tool for provider vulnerability scanning |
 | Helm | — | ❌ No standardised tool; review chart `Chart.lock` manually |
 
 **Key note on .NET:** without `--include-transitive`, `dotnet list package --vulnerable` only
-reports vulnerable *direct* dependencies. Always use the full flag.
+reports vulnerable *direct* dependencies, and the command exits 0 even when it finds some, so
+it cannot gate a build. The gate is NuGetAudit with its `NU1901`–`NU1904` warnings promoted to
+errors; set `NuGetAuditMode` to `all`, because projects targeting below `net10.0` audit only
+direct dependencies by default. See [.NET](dotnet.md#security-vulnerability-auditing).
 
 ### Layer 3: Minimum release age
 
@@ -72,13 +75,13 @@ within the configured age threshold, the install fails immediately.
 
 | Ecosystem | Implementation | Applies to transitives? |
 |-----------|---------------|------------------------|
-| npm ≥ 11.10 | `minimum-release-age` in `.npmrc` | ✅ All resolved packages |
-| pnpm ≥ 10.16 | `minimumReleaseAge` in `pnpm-workspace.yaml` | ✅ All resolved packages |
-| Yarn Berry ≥ 4.10 | `npmMinimalAgeGate` in `.yarnrc.yml` | ✅ All resolved packages |
-| Bun ≥ 1.3 | `minimumReleaseAge` in `bunfig.toml` | ✅ All resolved packages |
+| npm ≥ 11.10 | `min-release-age` (days) in `.npmrc` | ✅ All resolved packages |
+| pnpm ≥ 10.16 | `minimumReleaseAge` (minutes) in `pnpm-workspace.yaml` | ✅ All resolved packages |
+| Yarn Berry ≥ 4.10 | `npmMinimalAgeGate` (minutes) in `.yarnrc.yml` | ✅ All resolved packages |
+| Bun ≥ 1.3 | `minimumReleaseAge` (seconds) in `bunfig.toml` | ✅ All resolved packages |
 | uv ≥ 0.9.17 | `exclude-newer` in `[tool.uv]` | ✅ All resolved packages |
 | pip ≥ 26.0 | `--uploaded-prior-to` | ✅ All resolved packages (absolute date only — not rolling) |
-| Cargo | `cargo-cooldown` | ✅ All resolved packages at fetch time |
+| Cargo ≥ 1.100 | `[registry] global-min-publish-age` in `.cargo/config.toml` | ✅ All resolved packages (`cargo install` is exempt) |
 | Go | None native | ❌ No built-in; see [Go gap](#go-module-proxy) below |
 | Composer | None native | ❌ Dependabot cooldown only (direct deps, PR level) |
 | Bundler | None native | ❌ Dependabot cooldown only |
@@ -167,7 +170,7 @@ within the configured window.
 | Bun (≥ 1.3) | ✅ | ✅ | ✅ |
 | uv (≥ 0.9.17) | ✅ | ✅ | ✅ |
 | pip (≥ 26.0) | ✅ | ✅ | ⚠️ Absolute date only |
-| Cargo | ✅ | ✅ | ✅ (`cargo-cooldown`) |
+| Cargo (≥ 1.100) | ✅ | ✅ | ✅ |
 | Go modules | ✅ (`go.sum` hashes) | ✅ | ❌ Athens proxy optional |
 | Composer | ✅ | ✅ | ❌ |
 | Bundler | ✅ | ✅ | ❌ |

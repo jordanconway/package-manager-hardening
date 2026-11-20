@@ -12,9 +12,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-20
+
+Security release: corrects documented hardening settings that had no effect, and the `audit.py` checks that counted them as configured (advisory GHSA-h4mr-3f69-px4v). Some `audit.py` JSON keys changed, and repositories that passed only because of a dead setting will now fail those checks; see **Security** below.
+
 ### Added
 
 - New [`tests/test_fuzz_harness_contract.py`](tests/test_fuzz_harness_contract.py) guards the `fuzz/` harnesses against the silent drift that left them broken for weeks. It stubs `atheris` so it runs in the ordinary PR suite (atheris ships Linux x86_64 wheels only and is deliberately not a dev dependency), drives each harness's real `TestOneInput` over adversarial inputs to catch signature drift and fixture-setup crashes, and AST-compares the regex corpora in `fuzz_audit_helpers.py` against the patterns `audit.py` actually uses so the two cannot diverge. Verified to catch all three bugs found in the previous entry, plus pattern additions/edits, a renamed audit function, and a `find_value` pattern losing its capturing group. Adds 8 tests, ~0.1s.
+
+### Security
+
+Several documented hardening settings had no effect, or a different effect from the one described, while installs and CI kept passing — and `audit.py` counted some of them as configured. Reported privately by [@echennells](https://github.com/echennells), who tested each one against the real package managers. **If you copied any of these from an earlier revision of this guide, replace them.**
+
+- **npm:** the release-age key is `min-release-age`, in **days** (`min-release-age=7`). `minimum-release-age=10080` is not an npm setting and applies no gate. `npm install --frozen-lockfile` is not an npm flag; use `npm ci`.
+- **pnpm:** `minimumReleaseAge` and `trustPolicyIgnoreAfter` take a bare number of **minutes** (`10080`, `525600`), not strings like `"7 days"`. `onlyBuiltDependencies` / `ignoredBuiltDependencies` were removed in pnpm 11; use `allowBuilds` (pnpm ≥ 10.26). Version requirements for `minimumReleaseAgeExclude` (10.16) and `trustPolicy` (10.21) corrected, and `trustPolicyIgnoreAfter` is now described as skipping the trust check, not the age check.
+- **Yarn Berry:** a bare `npmMinimalAgeGate` number is **minutes**, so the documented `604800` was a 420-day gate. Use `10080`.
+- **Bun:** `minimumReleaseAge` is a number of **seconds** (`604800`); the string form `"7d"` only parses from Bun 1.4.4 and fails every install on 1.3.0–1.4.3. `lifecycleScripts = false` and a bunfig `[install.trustedDependencies]` table are ignored; use `ignoreScripts = true`, or `trustedDependencies` in `package.json`.
+- **Cargo:** `[cooldown] days = 7` in `.cargo/config.toml` and `cargo cooldown --days 7` are read by nothing. Cargo 1.100 has a native `[registry] global-min-publish-age`; `cargo-cooldown` (≥ 0.3.1) reads the same key from `cooldown.toml`. `cargo build --build-plan` no longer exists; the build-script listing now uses `cargo metadata`.
+- **.NET:** `dotnet list package --vulnerable` exits 0 when it finds vulnerable packages, so it never gated a build. The gate is now NuGetAudit with `NU1901`–`NU1904` as errors and `NuGetAuditMode=all`. The `trustedSigners` example carried a truncated, incorrect fingerprint; it now lists the three nuget.org repository certificates as published by nuget.org, with the command to verify them.
+- **Go:** `GONOSUMCHECK` is not a Go variable and is removed. `GOSUMDB=off` and `GOPRIVATE='*'` are documented as global checksum-database bypasses alongside `GONOSUMDB='*'`.
+- **`audit.py`:** no longer reports the dead settings above as configured, and now recognises the working ones (`min-release-age`, numeric `minimumReleaseAge`, Yarn duration strings, `allowBuilds`, `ignoreScripts`, `package.json` `trustedDependencies`, `global-min-publish-age` in `.cargo/config.toml` or `cooldown.toml`). It flags `GOSUMDB=off` and `GOPRIVATE=*`, no longer false-positives on scoped patterns such as `GONOSUMDB=*.corp.example.com`, and fixes a Bun regex that captured past the end of the line. Unsupported keys are surfaced in the report (`unsupported_key`, `invalid_value`, `unsupported_bunfig_keys`, `unsupported_table`).
+- **`audit.py`, from review of the fix:** a bare Yarn `npmMinimalAgeGate` above `43200` (30 days) is reported as `suspect_value` and downgrades the cooldown check to `warn`, so repositories still carrying the old `604800` are no longer reported as fine. A per-registry `[registries.<name>] min-publish-age` is recognised (`rust.cooldown.registry_min_publish_age`, `scope`). `dotnet.ci.status` now also requires transitive auditing (`transitive_audit`): `NuGetAuditMode=all`, unless every project targets `net10.0` or later. [`docs/rust.md`](docs/rust.md) notes that Cargo's gate does not re-check versions already in `Cargo.lock`.
+- **Breaking, `audit.py` JSON:** `nodejs.minimum_release_age."minimum-release-age"` → `"min-release-age"`; `nodejs.build_script_control.lifecycleScripts_false` → `ignoreScripts`; `rust.cooldown.days` → `global_min_publish_age` (+ `source`); `dotnet.ci.vulnerability_check` → `vulnerability_report`, with the new `vulnerability_gate` deciding `dotnet.ci.status`; `go.sum_database` gains `goprivate_wildcard` and `gosumdb_off`. Repositories that passed only because of a dead setting will now fail those checks.
 
 ### Fixed
 
@@ -208,7 +227,8 @@ Documented in [`SECURITY.md`](SECURITY.md):
 - `Maintained` Scorecard check is time-based and will resolve once the repository is 90 days old.
 - OpenSSF Best Practices badge: **Passing** tier awarded (project 12822).
 
-[Unreleased]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/jordanconway/package-manager-hardening/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/jordanconway/package-manager-hardening/compare/v0.3.0...v0.4.0

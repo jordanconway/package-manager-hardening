@@ -44,7 +44,7 @@ inputs:
   cooldown-strategy:
     description: >-
       How to grade the release-age cooldown control. "auto" (default): satisfied by either a
-      resolver-level cooldown (uv exclude-newer, npm/pnpm/bun/yarn age gates, cargo-cooldown) or
+      resolver-level cooldown (uv exclude-newer, npm/pnpm/bun/yarn age gates, Cargo min-publish-age) or
       a Dependabot cooldown, and warns when both are configured (the resolver-level one blocks
       Dependabot's automated security updates). "dependabot": require a Dependabot cooldown and
       flag redundant resolver-level cooldowns — recommended for org estates standardised on

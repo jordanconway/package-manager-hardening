@@ -159,3 +159,17 @@ def test_rust_resolver_detected_from_cargo_cooldown():
     }
     result = audit.assess_cooldown(r, ["rust"], strategy="auto")
     assert result["ecosystems"]["rust"]["status"] == "warn"  # both present
+
+
+def test_suspect_yarn_value_downgrades_pass_to_warn():
+    """A 420-day Yarn gate is a gate, but must not be reported as fine."""
+    suspect = "npmMinimalAgeGate: 604800 is 420 days"
+    r = {
+        "ecosystems_detected": ["nodejs"],
+        "nodejs": {"minimum_release_age": {"configured": True, "suspect_value": suspect}},
+        "dependabot": {"ecosystems": {"nodejs": {"status": "warn", "cooldown_configured": False}}},
+    }
+    result = audit.assess_cooldown(r, ["nodejs"], strategy="auto")
+    assert result["status"] == "warn"
+    assert result["ecosystems"]["nodejs"]["status"] == "warn"
+    assert result["ecosystems"]["nodejs"]["note"] == suspect

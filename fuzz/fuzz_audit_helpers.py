@@ -42,7 +42,14 @@ with atheris.instrument_imports():
 
 # Backtracking-prone / quantifier-heavy patterns from audit.py's grep() calls.
 GREP_PATTERNS = (
-    r"GONOSUMDB\s*[=:]\s*['\"]?\*['\"]?|GONOSUMCHECK\s*[=:]\s*['\"]?\*['\"]?",
+    r"(?<![A-Z_])GOSUMDB[ \t]*[=:][ \t]*['\"]?off\b",
+    r"(?m)^[ \t]*minimum-release-age[ \t]*=",
+    r"(?m)^[ \t]*allowBuilds[ \t]*:",
+    r"(?m)^[ \t]*ignoreScripts[ \t]*=[ \t]*true\b",
+    r"(?m)^[ \t]*\[install\.trustedDependencies\]",
+    r"(?m)^[ \t]*\[cooldown\]",
+    r"<TreatWarningsAsErrors>\s*true\s*</TreatWarningsAsErrors>",
+    r"<NuGetAudit>\s*false\s*</NuGetAudit>",
     r"^\s*ruby\s+['\"]",
     r"BUNDLE_FROZEN|bundle config.*frozen",
     r"bundle audit|bundler-audit",
@@ -60,7 +67,7 @@ GREP_PATTERNS = (
     r"<ManagePackageVersionsCentrally>\s*true\s*</ManagePackageVersionsCentrally>",
     r"^\s*steps:",
     r"disable-sudo:\s*[\"']?true[\"']?",
-    r"lifecycleScripts\s*=\s*false",
+    r"lifecycleScripts\s*=",
     r"<RestorePackagesWithLockFile>\s*true\s*</RestorePackagesWithLockFile>",
     r"encryption\s*\{",
     r'package-ecosystem:\s*["\']?gradle-wrapper["\']?',
@@ -69,15 +76,18 @@ GREP_PATTERNS = (
 # Every find_value() pattern in audit.py. Each has exactly one capturing group,
 # which is what find_value requires.
 FIND_VALUE_PATTERNS = (
-    r"\[cooldown\].*?days\s*=\s*(\d+)",
-    r'minimumReleaseAge[:\s]+["\']?([^\s"\']+)',
+    r"(?m)^[ \t]*(?:registry\.)?global-min-publish-age[ \t]*=[ \t]*([^#\r\n]*)",
+    r"(?m)^[ \t]*global-min-publish-age[ \t]*=[ \t]*([^#\r\n]*)",
+    r"(?m)^[ \t]*\[registries\.[^\]\r\n]+\][^\[]*?^[ \t]*min-publish-age[ \t]*=[ \t]*([^#\r\n]*)",
+    r"(?m)^[ \t]*registries\.[\w-]+\.min-publish-age[ \t]*=[ \t]*([^#\r\n]*)",
+    r"(?m)^[ \t]*minimumReleaseAge[ \t]*:[ \t]*([^#\r\n]*)",
     r"trustPolicy[:\s]+([^\s\n]+)",
     r'exclude-newer\s*=\s*["\']?([^"\'\\n\]]+)',
-    r"days\s*=\s*(\d+)",
     r"egress-policy:\s*(\S+)",
-    r"minimum-release-age\s*=\s*(\d+)",
-    r"npmMinimalAgeGate[:\s]+(\d+)",
-    r'minimumReleaseAge\s*=\s*["\']?([^"\'\\n]+)',
+    r"(?m)^[ \t]*min-release-age[ \t]*=[ \t]*(\d+)",
+    r"(?m)^[ \t]*npmMinimalAgeGate[ \t]*:[ \t]*[\"']?(\d+(?:ms|s|m|h|d|w)?)\b",
+    r"(?m)^[ \t]*minimumReleaseAge[ \t]*=[ \t]*([^#\r\n]*)",
+    r"(?i)<NuGetAuditMode>\s*([A-Za-z]+)\s*</NuGetAuditMode>",
 )
 
 

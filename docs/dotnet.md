@@ -152,19 +152,40 @@ ensuring only the sources you declare here are used. This is especially importan
 
 ### Security: Vulnerability Auditing
 
-```bash
-# Check all packages in the solution against the GitHub Advisory Database
-dotnet list package --vulnerable
+The build gate is **NuGetAudit**, which runs during `dotnet restore`. Promote its warnings
+to errors so a known-vulnerable package fails the restore:
 
-# Include transitive (indirect) dependencies
+```xml
+<!-- Directory.Build.props -->
+<Project>
+  <PropertyGroup>
+    <NuGetAudit>true</NuGetAudit>
+    <!-- "all" audits transitive packages too. The default is "direct" for
+         projects targeting anything below net10.0. -->
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
+    <!-- NU1901 low, NU1902 moderate, NU1903 high, NU1904 critical -->
+    <WarningsAsErrors>$(WarningsAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsAsErrors>
+  </PropertyGroup>
+</Project>
+```
+
+`dotnet list package --vulnerable` is useful as a **report**, not as a gate:
+
+```bash
+# List packages with known vulnerabilities, including transitive ones
 dotnet list package --vulnerable --include-transitive
 
 # Also check for deprecated packages
 dotnet list package --deprecated
 ```
 
-Run `dotnet list package --vulnerable --include-transitive` on every CI build. The command
-exits non-zero if any vulnerable package is found, making it suitable as a build gate.
+> **`dotnet list package --vulnerable` does not fail the build.** It exits `0` whether or
+> not it finds a vulnerable package, and only exits non-zero on an error such as a missing
+> project file. The upstream request for a failing exit code
+> ([NuGet/Home#11315](https://github.com/NuGet/Home/issues/11315)) was closed as not
+> planned in favour of NuGetAudit. A CI step that only runs this command will pass with
+> vulnerable packages installed.
 
 ### Security: Signed Packages and NuGet Trust
 
@@ -175,8 +196,12 @@ repository signatures. You can enforce signed packages in `nuget.config`:
 <configuration>
   <trustedSigners>
     <repository name="nuget.org" serviceIndex="https://api.nuget.org/v3/index.json">
-      <certificate fingerprint="0E5F38F57DC1BCC806D8494F4F90FBBA" hashAlgorithm="SHA256"
-                   allowUntrustedRoot="false" />
+      <certificate fingerprint="0E5F38F57DC1BCC806D8494F4F90FBCEDD988B46760709CBEEC6F4219AA6157D"
+                   hashAlgorithm="SHA256" allowUntrustedRoot="false" />
+      <certificate fingerprint="5A2901D6ADA3D18260B9C6DFE2133C95D74B9EEF6AE0E5DC334C8454D1477DF4"
+                   hashAlgorithm="SHA256" allowUntrustedRoot="false" />
+      <certificate fingerprint="1F4B311D9ACC115C8DC8018B5A49E00FCE6DA8E2855F9F014CA6F34570BC482D"
+                   hashAlgorithm="SHA256" allowUntrustedRoot="false" />
     </repository>
   </trustedSigners>
   <config>
@@ -186,9 +211,32 @@ repository signatures. You can enforce signed packages in `nuget.config`:
 </configuration>
 ```
 
-Note: `signatureValidationMode: require` blocks packages that are not signed, which may
-affect some older or private packages. Start with `accept` mode and tighten after auditing
-your dependency tree.
+The three fingerprints are the nuget.org repository signing certificates (issued 2018, 2021
+and 2024). All three are needed: packages keep the signature they were given at upload, so a
+list with only one certificate rejects everything signed under the other two. Each value is
+a full 64-character SHA-256 fingerprint. Do not copy them from a guide, including this one,
+without checking them against the list nuget.org publishes:
+
+```bash
+curl -fsSL https://api.nuget.org/v3-index/repository-signatures/5.0.0/index.json \
+  | jq -r '.signingCertificates[] | "\(.fingerprints["2.16.840.1.101.3.4.2.1"])  \(.notAfter)"'
+```
+
+`dotnet nuget trust source nuget.org` writes the current set into `nuget.config` for you (the
+name must match a `<packageSources>` key), and `dotnet nuget trust sync nuget.org` refreshes it
+when nuget.org rotates certificates (the 2024 certificate expires in May 2027).
+
+Notes:
+
+- `signatureValidationMode: require` rejects any package that is unsigned or whose signer is
+  not in `trustedSigners`, which may affect older or private packages. A wrong or incomplete
+  fingerprint list fails every nuget.org restore with `NU3034`, so roll this out on a branch
+  and run a clean `dotnet restore --locked-mode` before merging.
+- `accept` is the default mode and is not an enforcement step: it does not require packages
+  to be signed.
+- Signed-package verification during restore is on by default on Windows and on Linux
+  (.NET 8 SDK and later) but off by default on macOS, so enforce this in CI rather than
+  relying on developer machines.
 
 ### CI Recommended Configuration
 
@@ -202,7 +250,8 @@ dotnet build --no-restore --configuration Release
 # Run tests
 dotnet test --no-restore --configuration Release
 
-# Check for known vulnerabilities (fail build if any found)
+# Report known vulnerabilities in the job log. This never fails the build: the gate is
+# NuGetAudit + WarningsAsErrors in Directory.Build.props, enforced by the restore above.
 dotnet list package --vulnerable --include-transitive
 ```
 
@@ -279,8 +328,9 @@ Every GitHub Actions workflow that runs `dotnet restore` or `dotnet build` must 
 
 Additional endpoints to add as needed:
 
-- `dotnet list package --vulnerable` calls the GitHub Advisory Database via `api.github.com`
-  (already in the list above).
+- NuGetAudit and `dotnet list package --vulnerable` read vulnerability data from the
+  package source's own `VulnerabilityInfo` resource (`api.nuget.org` for nuget.org, already
+  in the list above), not from `api.github.com`.
 - Private package feeds (Azure Artifacts, GitHub Packages, Artifactory): add each feed's
   hostname explicitly.
 - `actions/setup-dotnet` downloads SDK binaries from `dotnetcli.azureedge.net:443` and

@@ -19,8 +19,9 @@ npm generates `package-lock.json` on install. Commit this file to source control
 ```bash
 npm ci                   # strict lockfile install (CI)
 npm install              # resolves and updates lockfile
-npm install --frozen-lockfile  # alias: fails if lockfile would change
 ```
+
+> **`npm install --frozen-lockfile` is not an npm flag.** It belongs to pnpm, Yarn Classic and Bun. npm 10 ignores it silently, npm 11 warns and still rewrites `package-lock.json`, and npm 12 rejects it. `npm ci` is the only npm command that fails on a lockfile mismatch.
 
 ### Version Pinning
 
@@ -70,19 +71,14 @@ registry=https://your-registry.example.com/
 npm 11.10.0 (February 2026) added native support for blocking packages published within a configurable window. Set in `.npmrc`:
 
 ```ini
-# Block packages published within the last 7 days
-minimum-release-age=10080
-
-# Common values (in minutes):
-# 1 day    =  1440
-# 3 days   =  4320
-# 7 days   = 10080
-# 14 days  = 20160
+# Block packages published within the last 7 days.
+# The value is a number of DAYS.
+min-release-age=7
 ```
 
-> **Note:** As of initial release, npm's `minimum-release-age` does not support per-package exclusions. An open issue tracks adding this capability for cases where urgent security patches need to bypass the delay.
+> **The key is `min-release-age`, in days.** `minimum-release-age` is pnpm 10's `.npmrc` spelling (in minutes) and is not an npm setting: npm warns `Unknown project config "minimum-release-age"` and applies no gate. Do not carry a minutes value across either — `min-release-age=10080` is a 27-year window. Verify with `npm config get min-release-age`.
 >
-> **Choose `minimum-release-age` *or* a Dependabot `npm` cooldown — not both.** They are the same release-age control at different layers, and the resolver-level one has no security-update exception, so combining them blocks Dependabot's automated security updates. For most repositories, prefer the Dependabot cooldown and omit `minimum-release-age`; use the resolver-level gate only when you need transitive/local-install coverage. See [Cooldown: resolver-level vs Dependabot](dependabot.md#cooldown-resolver-level-vs-dependabot--pick-one).
+> **Choose `min-release-age` *or* a Dependabot `npm` cooldown — not both.** They are the same release-age control at different layers, and the resolver-level one has no security-update exception, so combining them blocks Dependabot's automated security updates. For most repositories, prefer the Dependabot cooldown and omit `min-release-age`; use the resolver-level gate only when you need transitive/local-install coverage. See [Cooldown: resolver-level vs Dependabot](dependabot.md#cooldown-resolver-level-vs-dependabot--pick-one).
 
 ### Security: Audit and Signatures
 
@@ -120,7 +116,7 @@ npm run test -w packages/api  # run in a specific workspace
 ```ini
 # .npmrc (committed to repo)
 save-exact=true
-minimum-release-age=10080
+min-release-age=7
 audit=true
 fund=false
 ```
@@ -168,28 +164,27 @@ pnpm introduced `minimumReleaseAge` in v10.16 (September 2025), configurable in 
 
 ```yaml
 # pnpm-workspace.yaml
-minimumReleaseAge: "7 days"
+minimumReleaseAge: 10080   # minutes (7 days)
+
+# Common values (in minutes):
+# 1 day   =  1440
+# 3 days  =  4320
+# 7 days  = 10080
+# 14 days = 20160
 ```
 
-Supported units: `minutes`, `hours`, `days`, `weeks`. Calendar units (months, years) are not supported.
+> **The value is a bare number of minutes.** Duration strings such as `"7 days"` are not supported: depending on the pnpm version they are a parse error (pnpm 12), break every install, or leave the gate ineffective. pnpm 11 and later default to `1440` (1 day) when the setting is absent.
 
-Per-package exclusions (pnpm ≥ 10.22):
+Per-package exclusions (pnpm ≥ 10.16):
 
 ```yaml
-minimumReleaseAge: "7 days"
+minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - typescript          # always allow latest TypeScript
   - "@myorg/*"          # exclude internal packages
 ```
 
-Ignore the age check for older, well-established packages (pnpm ≥ 10.27):
-
-```yaml
-minimumReleaseAge: "7 days"
-trustPolicyIgnoreAfter: "1 year"   # skip check for packages >1yr old
-```
-
-### Security: Trust Policy (pnpm ≥ 10.0)
+### Security: Trust Policy (pnpm ≥ 10.21)
 
 `trustPolicy` guards against supply chain attacks that downgrade package trust indicators (e.g., a package that previously had provenance attestation loses it):
 
@@ -208,24 +203,27 @@ trustPolicyExclude:
   - some-legacy-package   # known to lack provenance
 ```
 
+Skip the trust-policy check (not the release-age check) for versions published long ago (pnpm ≥ 10.27). Like `minimumReleaseAge`, the value is a number of minutes:
+
+```yaml
+trustPolicy: no-downgrade
+trustPolicyIgnoreAfter: 525600   # minutes (1 year)
+```
+
 ### Security: Build Script Control
 
-pnpm v10 no longer runs lifecycle scripts (postinstall, etc.) from dependencies by default unless explicitly allowed. Configure which packages may run build scripts:
+pnpm v10 no longer runs lifecycle scripts (postinstall, etc.) from dependencies by default unless explicitly allowed. Configure which packages may run build scripts with `allowBuilds` (pnpm ≥ 10.26):
 
 ```yaml
 # pnpm-workspace.yaml
-onlyBuiltDependencies:
-  - esbuild
-  - "@prisma/engines"
-  - node-gyp
+allowBuilds:
+  esbuild: true
+  "@prisma/engines": true
+  node-gyp: true
+  some-suspicious-package: false   # reviewed and denied
 ```
 
-Or deny specific packages from running scripts:
-
-```yaml
-ignoredBuiltDependencies:
-  - some-suspicious-package
-```
+> **pnpm 11 removed `onlyBuiltDependencies` and `ignoredBuiltDependencies`** in favour of `allowBuilds`. On pnpm 11 and later the old keys are ignored, and because `strictDepBuilds` now defaults to `true`, an install with an unreviewed build script fails with `ERR_PNPM_IGNORED_BUILDS`. `allowBuilds` works on pnpm 10.26 and later, so prefer it everywhere; only pnpm older than 10.26 still needs the old keys.
 
 ### Workspace / Monorepo
 
@@ -247,10 +245,10 @@ pnpm -r run test                     # run in all packages recursively
 
 ```yaml
 # pnpm-workspace.yaml
-minimumReleaseAge: "7 days"
+minimumReleaseAge: 10080   # minutes (7 days)
 trustPolicy: no-downgrade
-onlyBuiltDependencies:
-  - esbuild
+allowBuilds:
+  esbuild: true
 ```
 
 ```bash
@@ -332,14 +330,16 @@ Yarn 4.10.0 (September 2025) added `npmMinimalAgeGate`, a per-package minimum pu
 # .yarnrc.yml
 
 # Block any package version published within the last 7 days
-npmMinimalAgeGate: 604800   # value is in seconds
+npmMinimalAgeGate: 10080   # value is in minutes
 
-# Common values (in seconds):
-# 1 day   =   86400
-# 3 days  =  259200
-# 7 days  =  604800
-# 14 days = 1209600
+# Common values (in minutes):
+# 1 day   =  1440
+# 3 days  =  4320
+# 7 days  = 10080
+# 14 days = 20160
 ```
+
+> **A bare number is minutes, not seconds.** `604800` is a 420-day gate: installs still succeed, but Yarn quietly resolves to versions more than a year old. Yarn ≥ 4.11 also accepts duration strings (`"7d"`, `"1w"`); the bare number works on every release from 4.10. `audit.py` reports a bare value above `43200` (30 days) as `suspect_value` and downgrades the cooldown check to a warning; write a deliberately long gate as a duration string (`"60d"`).
 
 ### Security: Node Linker and PnP
 
@@ -370,7 +370,7 @@ yarn workspace @myorg/api run test  # run in specific workspace
 
 ```yaml
 # .yarnrc.yml
-npmMinimalAgeGate: 604800   # 7 days
+npmMinimalAgeGate: 10080   # minutes (7 days)
 defaultSemverRangePrefix: ""
 enableTelemetry: false
 ```
@@ -421,29 +421,40 @@ Bun 1.3 (October 2025) added `minimumReleaseAge` in `bunfig.toml`:
 ```toml
 # bunfig.toml
 [install]
-minimumReleaseAge = "7d"
+minimumReleaseAge = 604800   # seconds (7 days)
 
-# Supported suffixes: m (minutes), h (hours), d (days), w (weeks)
-# Examples:
-# "24h"  = 1 day
-# "3d"   = 3 days
-# "1w"   = 7 days
+# Common values (in seconds):
+# 1 day   =   86400
+# 3 days  =  259200
+# 7 days  =  604800
+# 14 days = 1209600
 ```
 
+> **Use a number of seconds.** Bun 1.3.0 through 1.4.3 reject a string value (`Expected number of seconds for minimumReleaseAge`), which fails every `bun install`. Duration strings such as `"7d"` are only accepted from Bun 1.4.4.
+
 ### Security: Lifecycle Scripts
+
+By default Bun does not run lifecycle scripts for dependencies, **except** for a built-in list of several hundred default-trusted packages. Your own project's scripts always run. There are two controls, and they live in different files.
+
+Replace the default trust list with an explicit allowlist in `package.json`:
+
+```json
+{
+  "trustedDependencies": ["esbuild", "@prisma/engines"]
+}
+```
+
+Defining `trustedDependencies` replaces Bun's default list rather than extending it, so only the packages you name may run scripts. Set it to `[]` to trust none.
+
+Or disable every lifecycle script, including your own project's and those of trusted packages:
 
 ```toml
 # bunfig.toml
 [install]
-lifecycleScripts = false   # disable all postinstall/build scripts globally
+ignoreScripts = true
 ```
 
-Or allowlist specific packages that need to run scripts:
-
-```toml
-[install.trustedDependencies]
-packages = ["esbuild", "@prisma/engines"]
-```
+> **`lifecycleScripts` and `[install.trustedDependencies]` are not bunfig settings.** Bun ignores both without warning. The script switch is `ignoreScripts`, and `trustedDependencies` is only read from `package.json`. With `ignoreScripts = true`, the allowlist has no effect.
 
 ### Workspace / Monorepo
 
@@ -465,11 +476,14 @@ bun run --filter '*' build    # run in all workspaces
 # bunfig.toml
 [install]
 exact = true
-minimumReleaseAge = "7d"
-lifecycleScripts = false
+minimumReleaseAge = 604800   # seconds (7 days)
+```
 
-[install.trustedDependencies]
-packages = ["esbuild", "turbo"]
+```json
+// package.json — replaces Bun's default trusted list
+{
+  "trustedDependencies": ["esbuild", "turbo"]
+}
 ```
 
 ```bash

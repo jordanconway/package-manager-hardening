@@ -85,27 +85,47 @@ registry = "sparse+https://your-mirror.example.com/index/"
 
 All crates.io fetches now go through your mirror. Individual crate `Cargo.toml` files do not need to change.
 
-## Security: Minimum Release Age via cargo-cooldown
+## Security: Minimum Release Age
 
-Cargo has no native cooldown feature. The `cargo-cooldown` crate (community tool, September 2025) wraps Cargo and enforces a configurable cooldown window before freshly published crates can enter your dependency graph:
+### Native (Cargo ≥ 1.100)
 
-```bash
-cargo install cargo-cooldown
-
-# Enforce a 7-day cooldown on all dependency resolution
-cargo cooldown --days 7 build
-cargo cooldown --days 7 test
-
-# Or set a default cooldown in config
-```
+Cargo 1.100 (November 2026) stabilised a minimum publish age for dependency resolution. Set it in `.cargo/config.toml`:
 
 ```toml
 # .cargo/config.toml
-[cooldown]
-days = 7
+[registry]
+global-min-publish-age = "7 days"
 ```
 
-> **Note:** `cargo-cooldown` is a community wrapper, not a native Cargo feature. Crates.io added a `pubtime` field to the registry index (providing publication timestamps) which enables this tooling, but native cooldown support in Cargo itself is not yet available.
+The value is a string: an integer followed by `seconds`, `minutes`, `hours`, `days`, `weeks` or `months`, or `"0"` to disable. A single registry can be overridden with `[registries.<name>] min-publish-age`, and the environment variable `CARGO_REGISTRY_GLOBAL_MIN_PUBLISH_AGE` sets the same value.
+
+Limits to know about:
+
+- Cargo older than 1.100 ignores the key, so pin the toolchain (`rust-toolchain.toml`) to 1.100 or later wherever the gate must hold.
+- `cargo install` ignores the minimum publish age.
+- The gate applies when Cargo resolves versions, not when it builds from an existing `Cargo.lock`. A crate that is already in the lockfile builds whatever its age, so a pull request that edits `Cargo.lock` to a too-new version passes `cargo build --locked`; only a re-resolve such as `cargo update` applies the gate (observed on Cargo 1.100.0, where `cargo update` then moved the crate back to an older version). Review lockfile changes, and rely on a Dependabot cooldown or `cargo-vet` to cover that path.
+- Versions with no `pubtime` in the registry index are never held back.
+- The table is `[registry]` with the `global-` prefix. `[registry] min-publish-age` is not a native key.
+
+### Older toolchains: cargo-cooldown
+
+For Cargo older than 1.100, the community [`cargo-cooldown`](https://crates.io/crates/cargo-cooldown) plugin (≥ 0.3.1) reads the same key from its own file, `cooldown.toml`, in the workspace root:
+
+```toml
+# cooldown.toml
+[registry]
+global-min-publish-age = "7 days"
+```
+
+```bash
+cargo install cargo-cooldown --locked
+cargo cooldown build
+cargo cooldown test
+```
+
+cargo-cooldown's own documentation recommends the native setting once you are on Cargo 1.100 or later.
+
+> **Two forms that do nothing.** A `[cooldown]` table with `days = 7` in `.cargo/config.toml` is read by neither Cargo nor cargo-cooldown, and `cargo cooldown --days 7` is not a valid flag. Both leave freshly published crates free to enter `Cargo.lock` with no warning. Earlier revisions of this guide showed both; replace them with one of the forms above.
 
 ## Security: Cargo Audit
 
@@ -142,8 +162,11 @@ some-package = { path = "../patched-some-package" }
 To audit which packages run build scripts:
 
 ```bash
-cargo build --build-plan 2>/dev/null | jq '.invocations[].program'
+cargo metadata --format-version 1 --locked \
+  | jq -r '.packages[] | select(any(.targets[]; .kind[] == "custom-build")) | "\(.name) \(.version)"'
 ```
+
+`cargo metadata` marks a build script as a target of kind `custom-build`. Do not use `cargo build --build-plan`: it was a nightly-only flag and was removed in Cargo 1.93, so on current toolchains it errors, and with stderr discarded the pipeline prints nothing, which reads as "no build scripts".
 
 ## Offline Mode
 

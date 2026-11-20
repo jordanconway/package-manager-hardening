@@ -95,7 +95,7 @@ Useful as a complementary check, particularly when the Ruby runtime version is m
 
 ### Security: Native Extensions
 
-Some gems compile native C extensions during install (`extconf.rb`). This runs arbitrary code at install time, analogous to npm postinstall scripts. There is no native allowlist mechanism in Bundler (unlike pnpm's `onlyBuiltDependencies`).
+Some gems compile native C extensions during install (`extconf.rb`). This runs arbitrary code at install time, analogous to npm postinstall scripts. There is no native allowlist mechanism in Bundler (unlike pnpm's `allowBuilds`).
 
 Mitigations:
 

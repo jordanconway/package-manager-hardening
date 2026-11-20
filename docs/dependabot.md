@@ -84,8 +84,8 @@ Per-package overrides using `include` and `exclude`:
 ## Cooldown: resolver-level vs Dependabot — pick one
 
 Several ecosystems can enforce a release-age cooldown at the **resolver level** —
-uv `exclude-newer`, npm `minimum-release-age`, pnpm/Bun `minimumReleaseAge`, Yarn
-`npmMinimalAgeGate`, `cargo-cooldown`. The Dependabot `cooldown` block enforces the **same
+uv `exclude-newer`, npm `min-release-age`, pnpm/Bun `minimumReleaseAge`, Yarn
+`npmMinimalAgeGate`, Cargo `global-min-publish-age`. The Dependabot `cooldown` block enforces the **same
 control at the PR level**. They are not complementary layers to stack — configuring **both for
 the same ecosystem is counter-productive**:
 

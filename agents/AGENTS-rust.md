@@ -56,7 +56,7 @@ serde = ">=1.0"
 serde = "~1.0"
 ```
 
-**Never add a crate version published within the last 7 days.** Check the publication date on crates.io before adding any new dependency. If a version was published less than 7 days ago, defer the addition until the cooldown has elapsed. Use `cargo-cooldown` (configured below) to enforce this automatically.
+**Never add a crate version published within the last 7 days.** Check the publication date on crates.io before adding any new dependency. If a version was published less than 7 days ago, defer the addition until the cooldown has elapsed. Use Cargo's minimum publish age (configured below) to enforce this automatically.
 
 **Always commit `Cargo.lock` for binaries and applications.** For library crates intended for downstream use, follow the project's established convention. When in doubt, commit it.
 
@@ -68,25 +68,16 @@ cargo update --precise 1.0.197 -p serde
 
 ## Configuration to Verify
 
-**`cargo-cooldown`** must be installed and used in place of bare `cargo` commands for build and test operations:
-
-```bash
-cargo install cargo-cooldown
-```
-
-Configure a default cooldown in `.cargo/config.toml`:
+**Minimum publish age** must be configured in `.cargo/config.toml` (Cargo ≥ 1.100):
 
 ```toml
-[cooldown]
-days = 7
+[registry]
+global-min-publish-age = "7 days"
 ```
 
-Then invoke via:
+On Cargo older than 1.100 the key is ignored. There, use the `cargo-cooldown` plugin (≥ 0.3.1) with the same `[registry] global-min-publish-age` key in a `cooldown.toml` file at the workspace root, and run `cargo cooldown build` / `cargo cooldown test`.
 
-```bash
-cargo cooldown --days 7 build
-cargo cooldown --days 7 test
-```
+Never write `[cooldown] days = 7` into `.cargo/config.toml` and never pass `--days` to `cargo cooldown`: neither is read by anything, so no cooldown is applied.
 
 **Feature flags:** Minimise enabled features to reduce attack surface. Only enable features explicitly required:
 
