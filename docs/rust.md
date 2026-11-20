@@ -103,6 +103,7 @@ Limits to know about:
 
 - Cargo older than 1.100 ignores the key, so pin the toolchain (`rust-toolchain.toml`) to 1.100 or later wherever the gate must hold.
 - `cargo install` ignores the minimum publish age.
+- The gate applies when Cargo resolves versions, not when it builds from an existing `Cargo.lock`. A crate that is already in the lockfile builds whatever its age, so a pull request that edits `Cargo.lock` to a too-new version passes `cargo build --locked`; only a re-resolve such as `cargo update` applies the gate (observed on Cargo 1.100.0, where `cargo update` then moved the crate back to an older version). Review lockfile changes, and rely on a Dependabot cooldown or `cargo-vet` to cover that path.
 - Versions with no `pubtime` in the registry index are never held back.
 - The table is `[registry]` with the `global-` prefix. `[registry] min-publish-age` is not a native key.
 

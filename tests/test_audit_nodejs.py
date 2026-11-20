@@ -330,3 +330,24 @@ def test_yarn_immutable_found(tmp_path):
     make_workflow(tmp_path, "ci.yml", "steps:\n  - run: yarn install --immutable\n")
     result = audit.audit_nodejs(str(tmp_path))
     assert result["ci_frozen_install"]["status"] == "pass"
+
+
+@pytest.mark.parametrize("value", ["604800", "43201"])
+def test_yarn_mra_bare_value_over_30_days_is_flagged(tmp_path, value):
+    """604800 was documented as seconds; as minutes it is a 420-day gate."""
+    make_pkg(tmp_path, pkg_manager="yarn@4.10.3")
+    (tmp_path / "yarn.lock").write_text("")
+    (tmp_path / ".yarnrc.yml").write_text(f"npmMinimalAgeGate: {value}\n")
+    mra = audit.audit_nodejs(str(tmp_path))["minimum_release_age"]
+    assert mra["configured"] is True
+    assert "minutes" in mra["suspect_value"]
+
+
+@pytest.mark.parametrize("value", ["10080", "43200", '"60d"'])
+def test_yarn_mra_plausible_value_is_not_flagged(tmp_path, value):
+    make_pkg(tmp_path, pkg_manager="yarn@4.11.0")
+    (tmp_path / "yarn.lock").write_text("")
+    (tmp_path / ".yarnrc.yml").write_text(f"npmMinimalAgeGate: {value}\n")
+    mra = audit.audit_nodejs(str(tmp_path))["minimum_release_age"]
+    assert mra["configured"] is True
+    assert "suspect_value" not in mra

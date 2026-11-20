@@ -75,6 +75,10 @@ def is_positive_int(value):
     return bool(value) and value.isdigit() and int(value) > 0
 
 
+# 30 days in minutes. A bare Yarn npmMinimalAgeGate above this is flagged.
+YARN_AGE_GATE_SUSPECT_MINUTES = 43200
+
+
 def workflow_files(root):
     wf_dir = Path(root) / ".github" / "workflows"
     if not wf_dir.is_dir():
@@ -240,6 +244,15 @@ def audit_nodejs(root):
         age = find_value(yarnrc, r"(?m)^[ \t]*npmMinimalAgeGate[ \t]*:[ \t]*[\"']?(\d+(?:ms|s|m|h|d|w)?)\b")
         mra["npmMinimalAgeGate"] = age
         mra["configured"] = bool(age) and not re.fullmatch(r"0+\D*", age)
+        # Earlier revisions of this guide gave 604800 and called it seconds.
+        # As minutes that is 420 days: a gate, but one that silently holds
+        # every dependency a year back. Anything over 30 days as a bare number
+        # is far more likely a unit mistake than a deliberate choice.
+        if age and age.isdigit() and int(age) > YARN_AGE_GATE_SUSPECT_MINUTES:
+            mra["suspect_value"] = (
+                f"npmMinimalAgeGate: {age} is {int(age) // 1440} days, because a bare number is minutes, "
+                "not seconds. Use 10080 for 7 days, or a duration string such as 7d (Yarn >= 4.11)."
+            )
     elif manager == "bun":
         bunfig = read(r / "bunfig.toml")
         # A number of SECONDS. Duration strings need Bun >= 1.4.4; earlier
@@ -534,10 +547,25 @@ def audit_rust(root):
     )
     plugin_age = clean_value(find_value(cooldown_toml, r"(?m)^[ \t]*global-min-publish-age[ \t]*=[ \t]*([^#\r\n]*)"))
     age = native_age or plugin_age
+    # Cargo also accepts a per-registry override, as a `[registries.<name>]`
+    # table key or a dotted key. It gates that one registry only, so it is
+    # reported separately from the global value.
+    registry_age = clean_value(
+        find_value(
+            config_toml,
+            r"(?m)^[ \t]*\[registries\.[^\]\r\n]+\][^\[]*?^[ \t]*min-publish-age[ \t]*=[ \t]*([^#\r\n]*)",
+        )
+    ) or clean_value(find_value(config_toml, r"(?m)^[ \t]*registries\.[\w-]+\.min-publish-age[ \t]*=[ \t]*([^#\r\n]*)"))
+    global_set = bool(age) and age != "0"
+    registry_set = bool(registry_age) and registry_age != "0"
     cooldown = {
-        "configured": bool(age) and age != "0",
+        "configured": global_set or registry_set,
         "global_min_publish_age": age,
-        "source": (".cargo/config.toml" if native_age else "cooldown.toml") if age else None,
+        "registry_min_publish_age": registry_age,
+        "scope": "global" if global_set else ("registry" if registry_set else None),
+        "source": (".cargo/config.toml" if native_age else "cooldown.toml")
+        if age
+        else (".cargo/config.toml" if registry_age else None),
     }
     if grep(config_toml, r"(?m)^[ \t]*\[cooldown\]"):
         cooldown["unsupported_table"] = (
@@ -679,6 +707,12 @@ def audit_ruby(root):
     return findings
 
 
+def _tfm_audits_transitive_by_default(tfm):
+    """True for net10.0 and later, where NuGetAuditMode defaults to `all`."""
+    m = re.fullmatch(r"net(\d+)\.\d+(?:-[\w.]+)?", tfm, re.IGNORECASE)
+    return bool(m) and int(m.group(1)) >= 10
+
+
 def audit_dotnet(root):
     r = Path(root)
     findings = {}
@@ -774,13 +808,34 @@ def audit_dotnet(root):
     audit_disabled = grep(msbuild, r"<NuGetAudit>\s*false\s*</NuGetAudit>", re.IGNORECASE)
     audit_mode = find_value(msbuild, r"(?i)<NuGetAuditMode>\s*([A-Za-z]+)\s*</NuGetAuditMode>")
     has_gate = not audit_disabled and (treat_all or ("NU1903" in as_errors and "NU1904" in as_errors))
-    findings["ci"] = {
+    # NuGetAuditMode defaults to `all` only for projects targeting net10.0 or
+    # later; below that the default is `direct`, and a transitive advisory
+    # never reaches the gate. So `all` must be explicit unless every target
+    # framework found is net10.0+. A framework that cannot be read (netstandard,
+    # .NET Framework, an MSBuild variable, or none declared) counts as below.
+    audit_mode = audit_mode.lower() if audit_mode else None
+    frameworks = [
+        tfm.strip()
+        for raw in re.findall(r"<TargetFrameworks?>([^<]*)</TargetFrameworks?>", msbuild, re.IGNORECASE)
+        for tfm in raw.split(";")
+        if tfm.strip()
+    ]
+    defaults_to_all = bool(frameworks) and all(_tfm_audits_transitive_by_default(t) for t in frameworks)
+    transitive = audit_mode == "all" or (audit_mode is None and defaults_to_all)
+    ci = {
         "locked_mode": has_locked_mode,
         "vulnerability_report": has_vuln_report,
         "vulnerability_gate": bool(has_gate),
-        "nuget_audit_mode": audit_mode.lower() if audit_mode else None,
-        "status": status(has_locked_mode and has_gate),
+        "nuget_audit_mode": audit_mode,
+        "transitive_audit": transitive,
+        "status": status(has_locked_mode and has_gate and transitive),
     }
+    if has_gate and not transitive:
+        ci["note"] = (
+            "NuGetAudit is a build gate, but only for direct dependencies: NuGetAuditMode is not `all` "
+            "and at least one project targets below net10.0. Add <NuGetAuditMode>all</NuGetAuditMode>."
+        )
+    findings["ci"] = ci
 
     return findings
 
@@ -1230,6 +1285,10 @@ def assess_cooldown(report, detected_ecosystems, strategy="auto"):
                     "No release-age cooldown configured. Add a Dependabot cooldown (recommended — "
                     f"keeps security autoupdates working) or a resolver-level cooldown ({_RESOLVER_HINT[eco]})."
                 )
+        suspect = report.get(eco, {}).get("minimum_release_age", {}).get("suspect_value") if eco == "nodejs" else None
+        if suspect and resolver and entry["status"] != "fail":
+            entry["status"] = "warn"
+            entry["note"] = f"{entry['note']} {suspect}" if entry.get("note") else suspect
         eco_findings[eco] = entry
 
     if not eco_findings:
@@ -1247,7 +1306,7 @@ def assess_cooldown(report, detected_ecosystems, strategy="auto"):
         result["note"] = (
             "Release-age cooldown is configured, but see the per-ecosystem rows — a resolver-level and "
             "Dependabot cooldown are both present (redundant; the resolver-level one blocks security "
-            "autoupdates), or the chosen strategy flags it."
+            "autoupdates), the configured value looks like a unit mistake, or the chosen strategy flags it."
         )
     return result
 

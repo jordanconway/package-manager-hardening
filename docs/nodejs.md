@@ -339,7 +339,7 @@ npmMinimalAgeGate: 10080   # value is in minutes
 # 14 days = 20160
 ```
 
-> **A bare number is minutes, not seconds.** `604800` is a 420-day gate: installs still succeed, but Yarn quietly resolves to versions more than a year old. Yarn ≥ 4.11 also accepts duration strings (`"7d"`, `"1w"`); the bare number works on every release from 4.10.
+> **A bare number is minutes, not seconds.** `604800` is a 420-day gate: installs still succeed, but Yarn quietly resolves to versions more than a year old. Yarn ≥ 4.11 also accepts duration strings (`"7d"`, `"1w"`); the bare number works on every release from 4.10. `audit.py` reports a bare value above `43200` (30 days) as `suspect_value` and downgrades the cooldown check to a warning; write a deliberately long gate as a duration string (`"60d"`).
 
 ### Security: Node Linker and PnP
 

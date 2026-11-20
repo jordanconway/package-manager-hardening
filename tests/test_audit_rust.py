@@ -5,6 +5,7 @@
 """Unit tests for audit_rust()."""
 
 import audit
+import pytest
 from conftest import make_workflow, write_file
 
 
@@ -90,6 +91,45 @@ def test_cooldown_zero_is_not_configured(tmp_path):
     write_file(tmp_path, ".cargo/config.toml", '[registry]\nglobal-min-publish-age = "0"\n')
     result = audit.audit_rust(str(tmp_path))
     assert result["cooldown"]["configured"] is False
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        '[registries.crates-io]\nmin-publish-age = "7 days"\n',
+        '[registries.my-registry]\nindex = "sparse+https://example.com/index/"\nmin-publish-age = "7 days"\n',
+        'registries.crates-io.min-publish-age = "7 days"\n',
+    ],
+)
+def test_cooldown_per_registry_configured(tmp_path, config):
+    """Cargo >= 1.100 also reads a per-registry min-publish-age."""
+    (tmp_path / "Cargo.toml").write_text(MINIMAL_CARGO_TOML)
+    write_file(tmp_path, ".cargo/config.toml", config)
+    cooldown = audit.audit_rust(str(tmp_path))["cooldown"]
+    assert cooldown["configured"] is True
+    assert cooldown["registry_min_publish_age"] == "7 days"
+    assert cooldown["global_min_publish_age"] is None
+    assert cooldown["scope"] == "registry"
+    assert cooldown["source"] == ".cargo/config.toml"
+
+
+def test_cooldown_per_registry_key_in_another_table_is_ignored(tmp_path):
+    """`min-publish-age` only counts inside a [registries.<name>] table."""
+    (tmp_path / "Cargo.toml").write_text(MINIMAL_CARGO_TOML)
+    write_file(
+        tmp_path,
+        ".cargo/config.toml",
+        '[registries.my-registry]\nindex = "sparse+https://example.com/index/"\n\n[net]\nmin-publish-age = "7 days"\n',
+    )
+    cooldown = audit.audit_rust(str(tmp_path))["cooldown"]
+    assert cooldown["configured"] is False
+    assert cooldown["scope"] is None
+
+
+def test_cooldown_global_scope_reported(tmp_path):
+    (tmp_path / "Cargo.toml").write_text(MINIMAL_CARGO_TOML)
+    write_file(tmp_path, ".cargo/config.toml", '[registry]\nglobal-min-publish-age = "7 days"\n')
+    assert audit.audit_rust(str(tmp_path))["cooldown"]["scope"] == "global"
 
 
 def test_cooldown_legacy_table_is_not_configured(tmp_path):

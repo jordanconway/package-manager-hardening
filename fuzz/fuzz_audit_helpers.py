@@ -78,6 +78,8 @@ GREP_PATTERNS = (
 FIND_VALUE_PATTERNS = (
     r"(?m)^[ \t]*(?:registry\.)?global-min-publish-age[ \t]*=[ \t]*([^#\r\n]*)",
     r"(?m)^[ \t]*global-min-publish-age[ \t]*=[ \t]*([^#\r\n]*)",
+    r"(?m)^[ \t]*\[registries\.[^\]\r\n]+\][^\[]*?^[ \t]*min-publish-age[ \t]*=[ \t]*([^#\r\n]*)",
+    r"(?m)^[ \t]*registries\.[\w-]+\.min-publish-age[ \t]*=[ \t]*([^#\r\n]*)",
     r"(?m)^[ \t]*minimumReleaseAge[ \t]*:[ \t]*([^#\r\n]*)",
     r"trustPolicy[:\s]+([^\s\n]+)",
     r'exclude-newer\s*=\s*["\']?([^"\'\\n\]]+)',
