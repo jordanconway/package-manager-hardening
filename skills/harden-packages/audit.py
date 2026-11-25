@@ -1127,6 +1127,75 @@ ECOSYSTEM_ALT_KEYS = {
 }
 
 
+_YAML_BLANK_OR_COMMENT = re.compile(r"^\s*(?:#.*)?$")
+_YAML_SEQ_ITEM = re.compile(r"^(\s*)-(?:\s+|$)")
+_DEPENDABOT_ECOSYSTEM_KEY = re.compile(r"package-ecosystem\s*:(.*)$")
+
+
+def _yaml_scalar(raw):
+    """Return a single-line YAML scalar with its quotes or trailing comment removed."""
+    raw = raw.strip()
+    if raw[:1] in ("'", '"'):
+        end = raw.find(raw[0], 1)
+        return raw[1:end] if end > 0 else raw[1:]
+    return re.split(r"\s#", raw, maxsplit=1)[0].strip()
+
+
+def dependabot_update_entries(content):
+    """Split dependabot.yml into the entries of its top-level `updates:` list.
+
+    Returns `(package_ecosystem, entry_text)` tuples in file order. The
+    ecosystem is the entry's own `package-ecosystem:` value (quoted or bare),
+    or None if the entry has none. `entry_text` holds the entry's lines with
+    comment-only lines dropped, so a comment never counts as configuration.
+
+    This is a small indentation-based reader for block-style YAML, which is
+    the form Dependabot documents; it keeps audit.py stdlib-only. Text before
+    the first entry (`version:`, `updates:`, header comments) belongs to no
+    entry.
+    """
+    lines = content.splitlines()
+    start = next((i + 1 for i, line in enumerate(lines) if re.match(r"updates\s*:\s*(?:#.*)?$", line)), None)
+    if start is None:
+        return []
+
+    entries = []  # list of [item_lines, key_column]
+    item_indent = None
+    for line in lines[start:]:
+        if _YAML_BLANK_OR_COMMENT.match(line):
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        item = _YAML_SEQ_ITEM.match(line)
+        if item_indent is None:
+            if not item:
+                break  # `updates:` is not followed by a block sequence
+            item_indent = indent
+        if indent < item_indent or (indent == item_indent and not item):
+            break  # dedent: the `updates:` list has ended
+        if item and indent == item_indent:
+            rest = line[item.end() :]
+            entries.append([[line], item.end() if rest.strip() else None])
+            continue
+        if entries[-1][1] is None:
+            entries[-1][1] = indent  # entry started with a bare `-`
+        entries[-1][0].append(line)
+
+    result = []
+    for item_lines, key_col in entries:
+        ecosystem = None
+        for n, line in enumerate(item_lines):
+            # Only a key at the entry's own mapping level names its ecosystem.
+            col = _YAML_SEQ_ITEM.match(line).end() if n == 0 else len(line) - len(line.lstrip(" "))
+            if col != key_col:
+                continue
+            m = _DEPENDABOT_ECOSYSTEM_KEY.match(line, col)
+            if m:
+                ecosystem = _yaml_scalar(m.group(1))
+                break
+        result.append((ecosystem, "\n".join(item_lines)))
+    return result
+
+
 def audit_dependabot(root, detected_ecosystems):
     r = Path(root)
     dep_file = r / ".github" / "dependabot.yml"
@@ -1143,27 +1212,24 @@ def audit_dependabot(root, detected_ecosystems):
     content = read(dep_file)
     findings = {"file": ".github/dependabot.yml"}
 
+    # Map each `package-ecosystem:` value to its first entry. Matching on the
+    # parsed value (not a substring of the file) keeps header comments, comments
+    # in other entries, and prefixes such as `gradle` in `gradle-wrapper` from
+    # being mistaken for an ecosystem's entry.
+    entries_by_ecosystem = {}
+    for ecosystem, entry in dependabot_update_entries(content):
+        if ecosystem:
+            entries_by_ecosystem.setdefault(ecosystem, entry)
+
     eco_findings = {}
     for eco in detected_ecosystems:
         candidate_keys = [ECOSYSTEM_KEYS.get(eco, eco)] + ECOSYSTEM_ALT_KEYS.get(eco, [])
-        key = candidate_keys[0]
-        for candidate in candidate_keys:
-            if grep(content, rf'package-ecosystem:\s*["\']?{re.escape(candidate)}["\']?'):
-                key = candidate
-                break
-        present = grep(content, rf'package-ecosystem:\s*["\']?{re.escape(key)}["\']?')
-        if present:
-            # Check for cooldown block — look for cooldown: within ~10 lines of this ecosystem entry
-            # Simple heuristic: split on package-ecosystem entries and check the relevant block
-            blocks = re.split(r"- package-ecosystem:", content)
-            has_cooldown = False
-            cooldown_days = None
-            for block in blocks:
-                if re.search(rf'["\']?{re.escape(key)}["\']?', block):
-                    has_cooldown = grep(block, r"cooldown:")
-                    m = re.search(r"default-days:\s*(\d+)", block)
-                    cooldown_days = int(m.group(1)) if m else None
-                    break
+        key = next((c for c in candidate_keys if c in entries_by_ecosystem), candidate_keys[0])
+        entry = entries_by_ecosystem.get(key)
+        if entry is not None:
+            has_cooldown = grep(entry, r"(?m)^[ \t]*cooldown[ \t]*:")
+            m = re.search(r"default-days:\s*(\d+)", entry)
+            cooldown_days = int(m.group(1)) if m else None
             eco_findings[eco] = {
                 "status": "pass" if has_cooldown else "warn",
                 "ecosystem_key": key,
@@ -1177,7 +1243,7 @@ def audit_dependabot(root, detected_ecosystems):
             if eco == "gradle":
                 # Gradle Wrapper version is a separate Dependabot ecosystem;
                 # surface it as a sub-finding so the LLM can flag if missing.
-                wrapper_present = grep(content, r'package-ecosystem:\s*["\']?gradle-wrapper["\']?')
+                wrapper_present = "gradle-wrapper" in entries_by_ecosystem
                 eco_findings[eco]["gradle_wrapper_ecosystem"] = "pass" if wrapper_present else "missing"
         else:
             eco_findings[eco] = {"status": "missing", "ecosystem_key": key}

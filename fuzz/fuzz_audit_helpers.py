@@ -70,7 +70,6 @@ GREP_PATTERNS = (
     r"lifecycleScripts\s*=",
     r"<RestorePackagesWithLockFile>\s*true\s*</RestorePackagesWithLockFile>",
     r"encryption\s*\{",
-    r'package-ecosystem:\s*["\']?gradle-wrapper["\']?',
 )
 
 # Every find_value() pattern in audit.py. Each has exactly one capturing group,
