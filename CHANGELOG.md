@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- The Dependabot audit in [`audit.py`](skills/harden-packages/audit.py) reported a configured cooldown as missing when a comment before the first `updates:` entry named the ecosystem (for example `# npm runtime + dev dependencies` above the `npm` entry). It split the file on `- package-ecosystem:` and took the first chunk that contained the ecosystem name anywhere, so the file header, or a comment in another ecosystem's entry, could stand in for the real entry. The ecosystem then showed `cooldown_configured: false`, and the cross-cutting `cooldown` check failed. The audit now reads each `updates:` entry and matches its own `package-ecosystem:` value exactly, quoted or bare, still with the standard library only. This also stops a commented-out entry from counting as present, a `cooldown:` that appears only in a comment from counting as configured, and a `gradle-wrapper` entry from satisfying `gradle`.
+
 ## [0.5.0] - 2026-11-20
 
 Security release: corrects documented hardening settings that had no effect, and the `audit.py` checks that counted them as configured ([GHSA-h4mr-3f69-px4v](https://github.com/jordanconway/package-manager-hardening/security/advisories/GHSA-h4mr-3f69-px4v)). Some `audit.py` JSON keys changed, and repositories that passed only because of a dead setting will now fail those checks; see **Security** below.
